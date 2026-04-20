@@ -1,7 +1,7 @@
 # Phase 1: Extraction Map
 
 ## Source implementation
-`~/.openclaw/workspace-sevro/projects/livekit-voice/` — 3,059 lines across 35 Python files
+`~/.openclaw/workspace-sevro/projects/livekit-voice/` — 3,059 lines across 35 Python files, plus 1,720-line HTML frontend, config YAMLs, prompt cache metadata, and deployment scripts
 
 ---
 
@@ -19,7 +19,7 @@
 | `llm/gateway.py` | 40 | OpenClaw gateway LLM via openai plugin | Clean — this IS the core bridge. Carry as-is. |
 | `llm/factory.py` | 51 | LLM mode routing (direct vs gateway) | Simplify: MVP is gateway-only. Drop cached/direct branching. Keep as thin factory for future extensibility. |
 | `agents/registry.py` | 41 | TTS instance creation per agent | Clean — carry as-is. |
-| `agents/voice_instruction.py` | 34 | Default voice system prompt | Review content. Carry and make configurable. |
+| `agents/voice_instruction.py` | 34 | Default voice system prompt | Review content. Remove RULE 8 (memory_write reference — tool not in MVP). Make configurable via config file. |
 | `stt/local.py` | 548 | Local faster-whisper STT with Silero VAD streaming | High-value, complex code. Carry with cleanup: extract constants to config, improve error messages. This is the most technically valuable module. |
 
 ### 🔄 Rewrite cleanly (same concept, fresh code)
@@ -39,15 +39,21 @@
 | `persistence/models.py` | 92 | Depends on persistence — Phase 4. |
 | `tools/registry.py` | 159 | Direct tool execution. In MVP, all tools go through OpenClaw gateway. Revisit in Phase 4 for latency optimization. |
 | `tools/gateway_proxy.py` | 186 | Custom gateway proxy tools (image gen, browser, sessions_send). Not needed when gateway handles tools. |
-| `tools/web.py` | ? | Direct web search/fetch. Not MVP. |
-| `tools/memory.py` | ? | Direct memory access. Not MVP. |
-| `tools/memory_write.py` | ? | Direct memory write. Not MVP. |
-| `tools/messaging.py` | ? | Direct message send. Not MVP. |
-| `tools/system.py` | ? | Direct session status. Not MVP. |
-| `tools/workspace.py` | ? | Workspace browsing. Not MVP. |
-| `tools/files.py` | ? | File search. Not MVP. |
-| `tools/exec_tool.py` | ? | Command execution. Not MVP. |
-| `web/index.html` | ~800 | Monolithic single-file UI. Rewrite as cleaner multi-file thin frontend. |
+| `tools/web.py` | 103 | Direct web search/fetch. Not MVP. |
+| `tools/memory.py` | 98 | Direct memory access. Not MVP. |
+| `tools/memory_write.py` | 81 | Direct memory write. Not MVP. |
+| `tools/messaging.py` | 59 | Direct message send. Not MVP. |
+| `tools/system.py` | 19 | Direct session status. Not MVP. |
+| `tools/workspace.py` | 211 | Workspace browsing. Not MVP. |
+| `tools/files.py` | 106 | File search. Not MVP. |
+| `tools/exec_tool.py` | 155 | Command execution. Not MVP. |
+| `web/index.html` | 1,720 | Monolithic single-file UI. Rewrite as cleaner multi-file thin frontend. |
+| `config/workspaces.yaml` | ~20 | Per-agent workspace path mapping. Used by persistence and tools. Drop from MVP (gateway handles workspaces). |
+| `livekit.yaml`, `livekit-native.yaml` | ~30 | LiveKit server config. Reference only — document in deployment guide. |
+| `prompts/*.meta.json` (15 files) | ~200 | Prompt cache metadata per agent. Drop — gateway mode doesn't need these. |
+| `prompts/tools_schema_voice.json` | ~500 | Tool schemas for cached mode. Drop from MVP — gateway provides tools. |
+| `start.sh`, `watchdog.sh` | ~50 | Personal deployment scripts. Drop — write generic startup docs instead. |
+| `tts/__init__.py` | 5 | Re-export only. Absorbed into `providers/tts/elevenlabs.py`. |
 
 ---
 
