@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenClaw Voice</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --danger: #f85149; --success: #3fb950; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; max-width: 420px; width: 90%; text-align: center; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 1.5rem; }
+  .status { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 1.5rem; }
+  .status.disconnected { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .status.connecting { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .status.connected { background: rgba(63,185,80,0.15); color: var(--success); }
+  select, button { font-size: 0.9rem; padding: 0.6rem 1.2rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; transition: all 0.15s; }
+  select:hover, button:hover { border-color: var(--accent); }
+  select { width: 100%; margin-bottom: 1rem; appearance: none; -webkit-appearance: none; padding-right: 2rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; }
+  .controls { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1rem; }
+  .btn-call { background: var(--success); color: #000; border-color: var(--success); font-weight: 600; flex: 1; }
+  .btn-call.active { background: var(--danger); border-color: var(--danger); }
+  .btn-mute { background: var(--surface); flex: 0; min-width: 48px; }
+  .btn-mute.muted { background: rgba(248,81,73,0.15); border-color: var(--danger); color: var(--danger); }
+  .user-info { color: var(--muted); font-size: 0.75rem; margin-top: 1.5rem; }
+  .demo-badge { background: rgba(210,153,34,0.15); color: #d29922; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+  .hidden { display: none; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🎙️ OpenClaw Voice</h1>
+  <p class="subtitle">Talk to your agents</p>
+
+  <div id="statusBadge" class="status disconnected">Disconnected</div>
+
+  <div id="authSection">
+    <select id="agentSelect" disabled>
+      <option>Loading agents...</option>
+    </select>
+
+    <div class="controls">
+      <button id="callBtn" class="btn-call" disabled>Connect</button>
+      <button id="muteBtn" class="btn-mute hidden" title="Mute">🎤</button>
+    </div>
+  </div>
+
+  <div id="userInfo" class="user-info"></div>
+</div>
+
+<script type="module">
+import { Room, RoomEvent, Track, ConnectionState } from 'https://esm.sh/livekit-client@2';
+
+const $ = (sel) => document.querySelector(sel);
+const agentSelect = $('#agentSelect');
+const callBtn = $('#callBtn');
+const muteBtn = $('#muteBtn');
+const statusBadge = $('#statusBadge');
+const userInfo = $('#userInfo');
+
+let room = null;
+let connected = false;
+let muted = false;
+
+function setStatus(state, text) {
+  statusBadge.className = `status ${state}`;
+  statusBadge.textContent = text || state.charAt(0).toUpperCase() + state.slice(1);
+  if (state === 'connecting') statusBadge.classList.add('pulse');
+}
+
+async function fetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+async function init() {
+  const session = await fetchJson('/api/session');
+
+  if (session.authMode === 'demo') {
+    userInfo.innerHTML = '<span class="demo-badge">DEMO MODE</span>';
+  }
+
+  if (!session.authenticated && session.authMode !== 'demo') {
+    agentSelect.innerHTML = '<option>Sign in required</option>';
+    return;
+  }
+
+  // In demo mode, trigger session setup
+  if (session.authMode === 'demo' && !session.authenticated) {
+    await fetchJson('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  }
+
+  const agentsData = await fetchJson('/api/agents');
+  agentSelect.innerHTML = '';
+  for (const agent of agentsData.agents) {
+    const opt = document.createElement('option');
+    opt.value = agent.id;
+    opt.textContent = `${agent.emoji || ''} ${agent.displayName || agent.id}`.trim();
+    agentSelect.appendChild(opt);
+  }
+  agentSelect.value = agentsData.lastAgent || agentsData.defaultAgent;
+  agentSelect.disabled = false;
+  callBtn.disabled = false;
+
+  if (session.authenticated) {
+    const name = session.name || session.email;
+    if (session.authMode !== 'demo') {
+      userInfo.textContent = name;
+    }
+  }
+}
+
+callBtn.addEventListener('click', async () => {
+  if (connected) {
+    await disconnect();
+  } else {
+    await connect();
+  }
+});
+
+muteBtn.addEventListener('click', () => {
+  if (!room) return;
+  muted = !muted;
+  room.localParticipant.setMicrophoneEnabled(!muted);
+  muteBtn.textContent = muted ? '🔇' : '🎤';
+  muteBtn.classList.toggle('muted', muted);
+});
+
+async function connect() {
+  const agentId = agentSelect.value;
+  if (!agentId) return;
+
+  setStatus('connecting', 'Connecting...');
+  callBtn.disabled = true;
+
+  try {
+    const tokenData = await fetchJson(`/api/token?agent=${encodeURIComponent(agentId)}`);
+    if (tokenData.error) {
+      setStatus('disconnected', tokenData.error);
+      callBtn.disabled = false;
+      return;
+    }
+
+    room = new Room({ adaptiveStream: true, dynacast: true });
+
+    room.on(RoomEvent.Disconnected, () => {
+      setStatus('disconnected');
+      connected = false;
+      callBtn.textContent = 'Connect';
+      callBtn.classList.remove('active');
+      muteBtn.classList.add('hidden');
+      agentSelect.disabled = false;
+    });
+
+    room.on(RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === Track.Kind.Audio) {
+        const el = track.attach();
+        el.id = 'agent-audio';
+        document.body.appendChild(el);
+      }
+    });
+
+    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      if (track.kind === Track.Kind.Audio) {
+        const el = document.getElementById('agent-audio');
+        if (el) el.remove();
+      }
+    });
+
+    await room.connect(tokenData.serverUrl, tokenData.participantToken);
+    await room.localParticipant.setMicrophoneEnabled(true);
+
+    connected = true;
+    muted = false;
+    setStatus('connected', `Connected — ${agentId}`);
+    callBtn.textContent = 'Disconnect';
+    callBtn.classList.add('active');
+    callBtn.disabled = false;
+    muteBtn.classList.remove('hidden');
+    muteBtn.textContent = '🎤';
+    muteBtn.classList.remove('muted');
+    agentSelect.disabled = true;
+
+  } catch (err) {
+    console.error('Connection failed:', err);
+    setStatus('disconnected', 'Connection failed');
+    callBtn.disabled = false;
+    room = null;
+  }
+}
+
+async function disconnect() {
+  if (room) {
+    await room.disconnect();
+    room = null;
+  }
+  const el = document.getElementById('agent-audio');
+  if (el) el.remove();
+  connected = false;
+  muted = false;
+  setStatus('disconnected');
+  callBtn.textContent = 'Connect';
+  callBtn.classList.remove('active');
+  muteBtn.classList.add('hidden');
+  agentSelect.disabled = false;
+}
+
+init().catch(console.error);
+</script>
+</body>
+</html>
