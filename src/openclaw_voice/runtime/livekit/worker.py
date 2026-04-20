@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import signal
 from typing import Any
 
 from dotenv import load_dotenv
@@ -110,6 +111,7 @@ async def entrypoint(ctx: agents.JobContext):
         turn_handling=TurnHandlingOptions(
             interruption={"enabled": True, "mode": "vad"},
         ),
+        session_close_transcript_timeout=5.0,
     )
 
     await session.start(
@@ -130,7 +132,47 @@ async def rtc_entrypoint(ctx: agents.JobContext):
     await entrypoint(ctx)
 
 
+def _install_signal_handlers() -> dict[signal.Signals, Any]:
+    """Install shutdown handlers for graceful worker termination."""
+
+    previous_handlers: dict[signal.Signals, Any] = {}
+
+    def handle_shutdown(signum: int, _frame: Any) -> None:
+        signal_name = signal.Signals(signum).name
+        logger.info("Shutdown signal received: %s", signal_name)
+        raise KeyboardInterrupt
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        try:
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, handle_shutdown)
+        except ValueError:
+            logger.debug("Skipping signal handler install for %s", signum)
+
+    return previous_handlers
+
+
+def _restore_signal_handlers(previous_handlers: dict[signal.Signals, Any]) -> None:
+    """Restore any signal handlers replaced by the worker."""
+
+    for signum, handler in previous_handlers.items():
+        signal.signal(signum, handler)
+
+
+def _cleanup_worker(previous_handlers: dict[signal.Signals, Any]) -> None:
+    """Restore process state after worker shutdown."""
+
+    _restore_signal_handlers(previous_handlers)
+    logger.info("LiveKit worker cleanup complete")
+
+
 def main():
     """Run the LiveKit agent server."""
 
-    agents.cli.run_app(server)
+    previous_handlers = _install_signal_handlers()
+    try:
+        agents.cli.run_app(server)
+    except KeyboardInterrupt:
+        logger.info("Stopping LiveKit worker")
+    finally:
+        _cleanup_worker(previous_handlers)

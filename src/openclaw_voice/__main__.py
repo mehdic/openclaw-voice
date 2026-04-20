@@ -12,6 +12,20 @@ from .runtime.livekit.worker import main as run_worker
 logger = logging.getLogger(__name__)
 
 
+def _configure_logging() -> None:
+    """Configure structured application logging."""
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format=(
+            '{"timestamp":"%(asctime)s","level":"%(levelname)s","module":"%(name)s",'
+            '"message":"%(message)s"}'
+        ),
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        force=True,
+    )
+
+
 def _run_web_server() -> None:
     """Run the Flask web server."""
 
@@ -23,6 +37,7 @@ def _run_web_server() -> None:
 def main() -> None:
     """Run the web server and LiveKit worker process."""
 
+    _configure_logging()
     web_thread = threading.Thread(target=_run_web_server, name="openclaw-voice-web", daemon=True)
     web_thread.start()
     logger.info("Started Flask web server thread")

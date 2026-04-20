@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any
 
-from flask import Flask, jsonify, request, session
+from flask import Flask, g, jsonify, request, session
 from livekit import api
 
 from .auth import is_authenticated, login_required
@@ -14,6 +15,8 @@ from .config import get_agent_config, get_allowed_models, get_config, get_user_c
 
 DEMO_EMAIL = "demo@example.com"
 DEMO_NAME = "Demo User"
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_identity(email: str) -> str:
@@ -60,6 +63,23 @@ def register_routes(app: Flask) -> None:
     """Register API and static routes on the Flask app."""
 
     cfg = get_config()
+
+    @app.before_request
+    def start_request_timer() -> None:
+        g.request_started_at = time.perf_counter()
+
+    @app.after_request
+    def log_request_timing(response):
+        started_at = getattr(g, "request_started_at", None)
+        duration_ms = 0.0 if started_at is None else (time.perf_counter() - started_at) * 1000
+        logger.info(
+            "request_completed method=%s path=%s status=%s duration_ms=%.2f",
+            request.method,
+            request.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
 
     @app.get("/health")
     def health():

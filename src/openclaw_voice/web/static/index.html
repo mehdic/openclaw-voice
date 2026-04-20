@@ -23,6 +23,7 @@
   .btn-call.active { background: var(--danger); border-color: var(--danger); }
   .btn-mute { background: var(--surface); flex: 0; min-width: 48px; }
   .btn-mute.muted { background: rgba(248,81,73,0.15); border-color: var(--danger); color: var(--danger); }
+  .error-message { min-height: 1.25rem; margin-top: 0.75rem; color: var(--danger); font-size: 0.85rem; }
   .user-info { color: var(--muted); font-size: 0.75rem; margin-top: 1.5rem; }
   .demo-badge { background: rgba(210,153,34,0.15); color: #d29922; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
   .hidden { display: none; }
@@ -47,6 +48,8 @@
       <button id="callBtn" class="btn-call" disabled>Connect</button>
       <button id="muteBtn" class="btn-mute hidden" title="Mute">🎤</button>
     </div>
+
+    <div id="errorMessage" class="error-message hidden" role="status" aria-live="polite"></div>
   </div>
 
   <div id="userInfo" class="user-info"></div>
@@ -61,10 +64,12 @@ const callBtn = $('#callBtn');
 const muteBtn = $('#muteBtn');
 const statusBadge = $('#statusBadge');
 const userInfo = $('#userInfo');
+const errorMessage = $('#errorMessage');
 
 let room = null;
 let connected = false;
 let muted = false;
+let errorTimer = null;
 
 function setStatus(state, text) {
   statusBadge.className = `status ${state}`;
@@ -72,9 +77,41 @@ function setStatus(state, text) {
   if (state === 'connecting') statusBadge.classList.add('pulse');
 }
 
+function showError(message) {
+  if (!message) return;
+  if (errorTimer) clearTimeout(errorTimer);
+  errorMessage.textContent = message;
+  errorMessage.classList.remove('hidden');
+  errorTimer = window.setTimeout(() => {
+    errorMessage.textContent = '';
+    errorMessage.classList.add('hidden');
+  }, 5000);
+}
+
+function hideError() {
+  if (errorTimer) clearTimeout(errorTimer);
+  errorMessage.textContent = '';
+  errorMessage.classList.add('hidden');
+}
+
 async function fetchJson(url, opts) {
-  const res = await fetch(url, opts);
-  return res.json();
+  try {
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const error = new Error(data.error || 'Request failed');
+      error.status = res.status;
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    if (err instanceof TypeError) {
+      const error = new Error('Server unreachable');
+      error.cause = err;
+      throw error;
+    }
+    throw err;
+  }
 }
 
 async function init() {
@@ -134,16 +171,12 @@ async function connect() {
   const agentId = agentSelect.value;
   if (!agentId) return;
 
+  hideError();
   setStatus('connecting', 'Connecting...');
   callBtn.disabled = true;
 
   try {
     const tokenData = await fetchJson(`/api/token?agent=${encodeURIComponent(agentId)}`);
-    if (tokenData.error) {
-      setStatus('disconnected', tokenData.error);
-      callBtn.disabled = false;
-      return;
-    }
 
     room = new Room({ adaptiveStream: true, dynacast: true });
 
@@ -172,7 +205,14 @@ async function connect() {
     });
 
     await room.connect(tokenData.serverUrl, tokenData.participantToken);
-    await room.localParticipant.setMicrophoneEnabled(true);
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true);
+    } catch (err) {
+      if (err && err.name === 'NotAllowedError') {
+        showError('Microphone access denied');
+      }
+      throw err;
+    }
 
     connected = true;
     muted = false;
@@ -187,9 +227,30 @@ async function connect() {
 
   } catch (err) {
     console.error('Connection failed:', err);
-    setStatus('disconnected', 'Connection failed');
+    if (err && err.message === 'Server unreachable') {
+      showError('Server unreachable');
+      setStatus('disconnected');
+    } else if (err && err.name === 'NotAllowedError') {
+      setStatus('disconnected');
+    } else if (err && err.message) {
+      showError(err.message);
+      setStatus('disconnected', 'Connection failed');
+    } else {
+      showError('Connection failed');
+      setStatus('disconnected', 'Connection failed');
+    }
+
+    if (room) {
+      await room.disconnect().catch(() => undefined);
+      room = null;
+    }
     callBtn.disabled = false;
-    room = null;
+    connected = false;
+    muted = false;
+    callBtn.textContent = 'Connect';
+    callBtn.classList.remove('active');
+    muteBtn.classList.add('hidden');
+    agentSelect.disabled = false;
   }
 }
 
@@ -209,7 +270,10 @@ async function disconnect() {
   agentSelect.disabled = false;
 }
 
-init().catch(console.error);
+init().catch((err) => {
+  console.error('Initialization failed:', err);
+  showError(err && err.message === 'Server unreachable' ? 'Server unreachable' : 'Connection failed');
+});
 </script>
 </body>
 </html>
