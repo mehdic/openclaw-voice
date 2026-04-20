@@ -8,11 +8,16 @@ Thanks for contributing to `openclaw-voice`.
 git clone https://github.com/mehdic/openclaw-voice.git
 cd openclaw-voice
 cp env.example .env
+# Edit .env with your OpenClaw URL, LiveKit keys, and ElevenLabs key
+
+# With uv (recommended)
+uv sync
+uv run python -m openclaw_voice
+
+# Or with pip
 pip install -e ".[dev]"
 python -m openclaw_voice
 ```
-
-Update `.env` with the OpenClaw and LiveKit settings required for your environment before running the app.
 
 ## Pull requests
 
@@ -29,6 +34,10 @@ Update `.env` with the OpenClaw and LiveKit settings required for your environme
 
 ## Testing
 
-- Run `pytest` before opening a pull request
+```bash
+pytest
+```
+
+- Run tests before opening a pull request
 - Add or update tests when changing behavior
 - Prefer focused tests close to the code you changed
