@@ -206,7 +206,7 @@ async def entrypoint(ctx: agents.JobContext):
     await adapter.connect(room_name=room_name, agent_id=agent_id, metadata=metadata)
 
 
-@server.rtc_session()
+@server.rtc_session(agent_name="openclaw-voice")
 async def rtc_entrypoint(ctx: agents.JobContext):
     """RTC session entrypoint used by the LiveKit agent server."""
 

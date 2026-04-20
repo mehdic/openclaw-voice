@@ -234,6 +234,16 @@ def register_routes(app: Flask) -> None:
                 )
             )
             .with_metadata(metadata)
+            .with_room_config(
+                api.RoomConfiguration(
+                    agents=[
+                        api.RoomAgentDispatch(
+                            agent_name="openclaw-voice",
+                            metadata=metadata,
+                        )
+                    ],
+                )
+            )
         )
 
         return jsonify(
