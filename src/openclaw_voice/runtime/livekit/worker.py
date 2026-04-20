@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import signal
@@ -18,6 +19,7 @@ from ...openclaw.instructions import VOICE_CALL_INSTRUCTION
 from ...openclaw.llm import create_llm
 from ...providers.stt.whisper import LocalSTT
 from ...providers.tts.elevenlabs import get_tts_for_agent
+from ..base import RuntimeAdapter
 
 load_dotenv()
 
@@ -35,6 +37,112 @@ class VoiceAgent(Agent):
     def __init__(self, instructions: str | None = None, **kwargs: Any) -> None:
         self._voice_instructions = instructions or VOICE_CALL_INSTRUCTION
         super().__init__(instructions=self._voice_instructions, **kwargs)
+
+
+def _create_agent_session(agent_id: str, metadata: dict[str, Any]) -> AgentSession:
+    """Create a LiveKit agent session for an OpenClaw voice call."""
+
+    model_override = metadata.get("model_override") or None
+    agent_cfg = get_agent_config(agent_id)
+    cfg = get_config()
+
+    return AgentSession(
+        stt=LocalSTT(
+            model_size=cfg.voice.stt_model_size,
+            language=agent_cfg.language,
+            device=cfg.voice.stt_device,
+            compute_type=cfg.voice.stt_compute_type,
+            beam_size=cfg.voice.stt_beam_size,
+        ),
+        llm=create_llm(agent_id, model_override),
+        tts=get_tts_for_agent(agent_id),
+        vad=silero.VAD.load(),
+        turn_handling=TurnHandlingOptions(
+            interruption={"enabled": True, "mode": "vad"},
+        ),
+        session_close_transcript_timeout=5.0,
+    )
+
+
+async def _start_agent_session(
+    room: Any,
+    room_name: str,
+    agent_id: str,
+    metadata: dict[str, Any],
+) -> AgentSession:
+    """Start a LiveKit session in the provided room."""
+
+    session = _create_agent_session(agent_id, metadata)
+    await session.start(
+        room=room,
+        agent=VoiceAgent(instructions=VOICE_CALL_INSTRUCTION),
+    )
+
+    logger.info(
+        "Voice session started",
+        extra={
+            "agent_id": agent_id,
+            "session_id": room_name,
+            "model_override": (metadata.get("model_override") or ""),
+        },
+    )
+    return session
+
+
+async def _close_agent_session(session: AgentSession) -> None:
+    """Close a LiveKit agent session if the SDK exposes a shutdown hook."""
+
+    close_method = getattr(session, "aclose", None)
+    if callable(close_method):
+        await close_method()
+        return
+
+    close_method = getattr(session, "close", None)
+    if callable(close_method):
+        result = close_method()
+        if inspect.isawaitable(result):
+            await result
+
+
+class LiveKitAdapter(RuntimeAdapter):
+    """Concrete runtime adapter backed by the LiveKit Agents worker."""
+
+    def __init__(self, room: Any | None = None) -> None:
+        self._room = room
+        self._session: AgentSession | None = None
+
+    @property
+    def name(self) -> str:
+        """Return the runtime backend name."""
+
+        return "livekit"
+
+    async def connect(self, room_name: str, agent_id: str, metadata: dict[str, Any]) -> None:
+        """Connect an OpenClaw agent session to a LiveKit room."""
+
+        if self._session is not None:
+            raise RuntimeError("LiveKit adapter is already connected")
+
+        room = self._room or metadata.get("room")
+        if room is None:
+            raise RuntimeError(
+                "LiveKitAdapter.connect requires a bound room or metadata['room']"
+            )
+
+        self._session = await _start_agent_session(room, room_name, agent_id, metadata)
+
+    async def disconnect(self) -> None:
+        """Disconnect the current LiveKit session and release local state."""
+
+        session = self._session
+        self._session = None
+        if session is not None:
+            await _close_agent_session(session)
+
+    def is_connected(self) -> bool:
+        """Return whether a LiveKit session has been started."""
+
+        return self._session is not None
 
 
 def _extract_participant_metadata(ctx: agents.JobContext) -> dict[str, Any]:
@@ -82,10 +190,7 @@ async def entrypoint(ctx: agents.JobContext):
     metadata = _extract_participant_metadata(ctx)
     user_email, user_name = _extract_user_info(ctx)
     agent_id = _resolve_agent_id(ctx, metadata)
-    model_override = metadata.get("model_override") or None
     room_name = ctx.room.name or f"voice-{agent_id}-unknown"
-    agent_cfg = get_agent_config(agent_id)
-    cfg = get_config()
 
     logger.info(
         "Starting voice session",
@@ -97,32 +202,8 @@ async def entrypoint(ctx: agents.JobContext):
         },
     )
 
-    session = AgentSession(
-        stt=LocalSTT(
-            model_size=cfg.voice.stt_model_size,
-            language=agent_cfg.language,
-            device=cfg.voice.stt_device,
-            compute_type=cfg.voice.stt_compute_type,
-            beam_size=cfg.voice.stt_beam_size,
-        ),
-        llm=create_llm(agent_id, model_override),
-        tts=get_tts_for_agent(agent_id),
-        vad=silero.VAD.load(),
-        turn_handling=TurnHandlingOptions(
-            interruption={"enabled": True, "mode": "vad"},
-        ),
-        session_close_transcript_timeout=5.0,
-    )
-
-    await session.start(
-        room=ctx.room,
-        agent=VoiceAgent(instructions=VOICE_CALL_INSTRUCTION),
-    )
-
-    logger.info(
-        "Voice session started",
-        extra={"agent_id": agent_id, "session_id": room_name, "model_override": model_override or ""},
-    )
+    adapter = LiveKitAdapter(room=ctx.room)
+    await adapter.connect(room_name=room_name, agent_id=agent_id, metadata=metadata)
 
 
 @server.rtc_session()

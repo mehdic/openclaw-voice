@@ -134,6 +134,14 @@ def _install_livekit_stubs() -> None:
             self.args = args
             self.kwargs = kwargs
 
+    class RecognizeStream:
+        class _FlushSentinel:
+            pass
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
     class STTCapabilities:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -181,6 +189,7 @@ def _install_livekit_stubs() -> None:
     livekit_agents_module.stt = livekit_agents_stt_module
 
     livekit_agents_stt_module.STT = STT
+    livekit_agents_stt_module.RecognizeStream = RecognizeStream
     livekit_agents_stt_module.STTCapabilities = STTCapabilities
 
     livekit_agents_types_module.APIConnectOptions = APIConnectOptions
