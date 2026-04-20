@@ -31,7 +31,9 @@ def create_gateway_llm(agent_id: str, model_override: Optional[str] = None) -> o
     """Create an OpenClaw gateway-backed LLM instance."""
 
     cfg = get_config()
-    effective_model = model_override or cfg.voice.default_model
+    agent_cfg = cfg.agents.get(agent_id)
+    agent_model = agent_cfg.llm.model if agent_cfg else None
+    effective_model = model_override or agent_model or cfg.voice.default_model
     return openai.LLM(
         model=f"openclaw/{agent_id}",
         base_url=cfg.openclaw_url.rstrip("/") + "/v1",

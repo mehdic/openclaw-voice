@@ -56,7 +56,7 @@ class LLMConfig(BaseModel):
     """Per-agent LLM configuration."""
 
     mode: str = "gateway"
-    model: str = "gpt-5.4-mini"
+    model: str = "anthropic/claude-sonnet-4-6"
     models: LLMModels = Field(default_factory=LLMModels)
 
 
