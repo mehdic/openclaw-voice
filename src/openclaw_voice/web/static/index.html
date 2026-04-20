@@ -1,284 +1,1696 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenClaw Voice</title>
-<style>
-  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --danger: #f85149; --success: #3fb950; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; max-width: 420px; width: 90%; text-align: center; }
-  h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-  .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 1.5rem; }
-  .status { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 1.5rem; }
-  .status.disconnected { background: rgba(248,81,73,0.15); color: var(--danger); }
-  .status.connecting { background: rgba(88,166,255,0.15); color: var(--accent); }
-  .status.connected { background: rgba(63,185,80,0.15); color: var(--success); }
-  select, button { font-size: 0.9rem; padding: 0.6rem 1.2rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; transition: all 0.15s; }
-  select:hover, button:hover { border-color: var(--accent); }
-  select { width: 100%; margin-bottom: 1rem; appearance: none; -webkit-appearance: none; padding-right: 2rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; }
-  .controls { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1rem; }
-  .btn-call { background: var(--success); color: #000; border-color: var(--success); font-weight: 600; flex: 1; }
-  .btn-call.active { background: var(--danger); border-color: var(--danger); }
-  .btn-mute { background: var(--surface); flex: 0; min-width: 48px; }
-  .btn-mute.muted { background: rgba(248,81,73,0.15); border-color: var(--danger); color: var(--danger); }
-  .error-message { min-height: 1.25rem; margin-top: 0.75rem; color: var(--danger); font-size: 0.85rem; }
-  .user-info { color: var(--muted); font-size: 0.75rem; margin-top: 1.5rem; }
-  .demo-badge { background: rgba(210,153,34,0.15); color: #d29922; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-  .hidden { display: none; }
-  .pulse { animation: pulse 2s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Voice</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .header {
+      padding: 2rem 1.5rem 1rem;
+      text-align: center;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    h1 { font-size: 1.5rem; font-weight: 600; color: #fff; }
+    .subtitle { color: #666; font-size: 0.85rem; margin-top: 0.25rem; }
+
+    .auth-screen {
+      min-height: 100vh;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      background: #16161e;
+      border: 1px solid #2a2a35;
+      border-radius: 20px;
+      padding: 2rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+
+    .auth-card h1 { margin-bottom: 0.5rem; }
+    .auth-card .subtitle { margin-bottom: 1.5rem; line-height: 1.5; }
+    .auth-error {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      background: #2a0a0a;
+      color: #ef4444;
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .auth-user {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      color: #888;
+      font-size: 0.85rem;
+    }
+
+    .auth-user img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid #2a2a35;
+    }
+
+    .topbar {
+      width: 100%;
+      max-width: 500px;
+      padding: 0 1.5rem;
+      margin-top: 0.5rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .account-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: #16161e;
+      border: 1px solid #2a2a35;
+      border-radius: 999px;
+      padding: 0.45rem 0.6rem 0.45rem 0.45rem;
+      color: #aaa;
+      font-size: 0.78rem;
+    }
+
+    .account-pill img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .logout-btn {
+      border: 0;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+
+    .logout-btn:hover { color: #fff; }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      padding: 1rem 1.5rem;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .agent-card {
+      background: #16161e;
+      border: 2px solid #2a2a35;
+      border-radius: 16px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .agent-card:hover { border-color: #444; transform: translateY(-2px); }
+    .agent-card:active { transform: scale(0.97); }
+    .agent-card.selected { border-color: #6366f1; background: #1a1a2e; }
+
+    .agent-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      object-fit: cover; border: 2px solid #2a2a35; transition: border-color 0.2s;
+    }
+
+    .agent-card.selected .agent-avatar {
+      border-color: #6366f1;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.3);
+    }
+
+    .agent-name { font-size: 0.9rem; font-weight: 600; color: #fff; }
+    .agent-tagline { font-size: 0.7rem; color: #888; text-align: center; line-height: 1.3; }
+
+    .call-section {
+      padding: 1rem 1.5rem 2rem; width: 100%; max-width: 500px;
+      position: sticky; bottom: 0;
+      background: linear-gradient(to bottom, transparent, #0a0a0f 18%);
+      padding-top: 2rem;
+      z-index: 10;
+    }
+
+    .btn {
+      width: 100%; padding: 0.85rem; border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+
+    .btn-connect { background: #6366f1; color: #fff; }
+    .btn-connect:hover { background: #5558e6; }
+    .btn-connect:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status {
+      margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 10px;
+      font-size: 0.85rem; text-align: center;
+    }
+
+    .status-disconnected { background: #1a1a24; color: #888; }
+    .status-connecting { background: #1a1a24; color: #eab308; }
+    .status-connected { background: #0a2a15; color: #22c55e; }
+    .status-error { background: #2a0a0a; color: #ef4444; }
+
+    .btn-new-session {
+      background: transparent; border: 1px solid #333; color: #888;
+      font-size: 0.8rem; padding: 0.5rem 1rem; border-radius: 8px;
+      cursor: pointer; margin-top: 0.75rem; transition: all 0.2s; width: 100%;
+    }
+    .btn-new-session:hover { border-color: #6366f1; color: #6366f1; }
+
+    .session-indicator { font-size: 0.7rem; color: #555; text-align: center; margin-top: 0.5rem; }
+    .session-indicator .active { color: #6366f1; }
+
+    .call-active {
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; padding: 2rem 1.5rem;
+      width: 100%; max-width: 500px; min-height: 100vh;
+    }
+
+    .call-active.visible { display: flex; }
+
+    .call-participants {
+      display: flex; align-items: center; justify-content: center;
+      gap: 2.5rem; margin-bottom: 1.5rem;
+    }
+
+    .participant {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 0.5rem; position: relative;
+    }
+
+    .participant-ring {
+      width: 110px; height: 110px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; transition: all 0.3s ease;
+    }
+
+    .participant-ring.idle { background: transparent; box-shadow: 0 0 0 3px #2a2a35; }
+
+    .participant-ring.speaking {
+      box-shadow: 0 0 0 3px #22c55e, 0 0 25px rgba(34, 197, 94, 0.4), 0 0 50px rgba(34, 197, 94, 0.15);
+      animation: speakRing 1.5s ease-in-out infinite;
+    }
+
+    @keyframes speakRing {
+      0%, 100% { box-shadow: 0 0 0 3px #22c55e, 0 0 20px rgba(34, 197, 94, 0.3), 0 0 40px rgba(34, 197, 94, 0.1); }
+      50% { box-shadow: 0 0 0 5px #22c55e, 0 0 35px rgba(34, 197, 94, 0.5), 0 0 60px rgba(34, 197, 94, 0.2); }
+    }
+
+    .participant-ring.listening {
+      box-shadow: 0 0 0 3px #6366f1, 0 0 20px rgba(99, 102, 241, 0.3);
+      animation: listenRing 2s ease-in-out infinite;
+    }
+
+    @keyframes listenRing {
+      0%, 100% { box-shadow: 0 0 0 3px #6366f1, 0 0 15px rgba(99, 102, 241, 0.2); }
+      50% { box-shadow: 0 0 0 4px #6366f1, 0 0 25px rgba(99, 102, 241, 0.4); }
+    }
+
+    .participant-ring.processing {
+      box-shadow: 0 0 0 3px #eab308, 0 0 20px rgba(234, 179, 8, 0.3);
+      animation: processingRing 1s ease-in-out infinite;
+    }
+
+    @keyframes processingRing {
+      0%, 100% { box-shadow: 0 0 0 3px #eab308, 0 0 15px rgba(234, 179, 8, 0.2); }
+      50% { box-shadow: 0 0 0 5px #eab308, 0 0 30px rgba(234, 179, 8, 0.5); }
+    }
+
+    .participant-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; }
+
+    .user-icon {
+      width: 100px; height: 100px; border-radius: 50%;
+      background: #1e1e2e; display: flex; align-items: center;
+      justify-content: center; font-size: 2.5rem;
+    }
+
+    .participant-label {
+      font-size: 0.8rem; font-weight: 600; color: #888; transition: color 0.3s;
+    }
+
+    .transcript-panel {
+      width: 100%; max-width: 420px; margin: 12px auto 0;
+      max-height: 180px; overflow-y: auto;
+      padding: 8px 12px;
+      background: rgba(20, 20, 30, 0.7);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      scrollbar-width: thin;
+    }
+
+    .transcript-entry {
+      margin-bottom: 8px; line-height: 1.4; font-size: 0.85rem;
+    }
+
+    .transcript-entry .speaker { font-weight: 600; margin-right: 6px; }
+    .transcript-entry .speaker.user { color: #6366f1; }
+    .transcript-entry .speaker.agent { color: #22c55e; }
+    .transcript-entry .text { color: #ccc; }
+    .transcript-entry .text.interim { color: #888; font-style: italic; }
+    .participant-label.speaking { color: #22c55e; }
+    .participant-label.listening { color: #6366f1; }
+    .participant-label.processing { color: #eab308; }
+
+    .speaking-status {
+      font-size: 0.85rem; color: #888; text-align: center;
+      min-height: 1.5rem; margin-bottom: 0.5rem; transition: color 0.3s;
+    }
+    .speaking-status.user-talking { color: #22c55e; }
+    .speaking-status.agent-talking { color: #22c55e; }
+    .speaking-status.processing { color: #eab308; }
+
+    .processing-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+
+    .waveform {
+      display: flex; justify-content: center; align-items: center;
+      gap: 3px; height: 48px; margin-bottom: 1.5rem;
+    }
+
+    .wave-bar {
+      width: 4px; border-radius: 2px; background: #2a2a35;
+      height: 8px; transition: height 0.15s ease, background 0.3s;
+    }
+
+    .waveform.user-active .wave-bar { background: #22c55e; }
+    .waveform.agent-active .wave-bar { background: #6366f1; }
+    .waveform.processing .wave-bar { background: #eab308; }
+
+    .waveform.user-active .wave-bar,
+    .waveform.agent-active .wave-bar {
+      animation: waveAnim 0.8s ease-in-out infinite;
+    }
+
+    .waveform.processing .wave-bar {
+      animation: processWave 1.2s ease-in-out infinite;
+    }
+
+    .waveform .wave-bar:nth-child(1) { animation-delay: 0s; }
+    .waveform .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+    .waveform .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+    .waveform .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+    .waveform .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+    .waveform .wave-bar:nth-child(6) { animation-delay: 0.5s; }
+    .waveform .wave-bar:nth-child(7) { animation-delay: 0.6s; }
+
+    @keyframes waveAnim {
+      0%, 100% { height: 8px; }
+      50% { height: 40px; }
+    }
+
+    @keyframes processWave {
+      0%, 100% { height: 6px; }
+      50% { height: 20px; }
+    }
+
+    .call-timer {
+      font-size: 0.75rem; color: #555; margin-bottom: 1.5rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .call-actions {
+      display: flex; align-items: center; justify-content: center;
+      gap: 2rem; margin-bottom: 1rem;
+    }
+
+    .btn-end-call {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #dc2626; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-end-call:hover { background: #b91c1c; transform: scale(1.05); }
+    .btn-end-call:active { transform: scale(0.95); }
+    .btn-end-call svg { width: 28px; height: 28px; fill: #fff; }
+
+    .btn-new-call {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #1e1e2e; border: 2px solid #333; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s; font-size: 1.5rem;
+    }
+    .btn-new-call:hover { border-color: #6366f1; background: #1a1a2e; transform: scale(1.05); }
+    .btn-new-call:active { transform: scale(0.95); }
+
+    .btn-mute {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #1e1e2e; border: 2px solid #333; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s; font-size: 1.5rem;
+    }
+    .btn-mute:hover { border-color: #6366f1; background: #1a1a2e; transform: scale(1.05); }
+    .btn-mute:active { transform: scale(0.95); }
+    .btn-mute.muted { background: #dc2626; border-color: #dc2626; }
+    .btn-mute.muted:hover { background: #b91c1c; border-color: #b91c1c; }
+
+    .call-action-label {
+      font-size: 0.65rem; color: #555; text-align: center; margin-top: 0.3rem;
+    }
+
+    .call-action-wrap {
+      display: flex; flex-direction: column; align-items: center;
+    }
+
+    .audio-enable-btn {
+      margin-top: 1rem; padding: 0.5rem 1.5rem;
+      background: #6366f1; color: #fff; border: none;
+      border-radius: 8px; font-size: 0.85rem; cursor: pointer; display: none;
+    }
+
+    .hint {
+      margin-top: 0.5rem; font-size: 0.75rem; color: #666;
+      text-align: center; display: none;
+    }
+    .hint.visible { display: block; }
+
+    .chat-toggle {
+      position: fixed; right: 1rem; bottom: 1rem; z-index: 40;
+      width: 56px; height: 56px; border-radius: 50%; border: 1px solid #2a2a35;
+      background: rgba(22, 22, 30, 0.95); color: #fff; font-size: 1.4rem;
+      cursor: pointer; display: none; align-items: center; justify-content: center;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+
+    .chat-toggle.visible { display: flex; }
+
+    .chat-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+      max-height: 70vh; background: rgba(10, 10, 15, 0.98);
+      border-top: 1px solid #2a2a35; transform: translateY(100%);
+      transition: transform 0.22s ease; display: flex; flex-direction: column;
+      backdrop-filter: blur(14px);
+    }
+
+    .chat-panel.open { transform: translateY(0); }
+
+    .chat-panel-header {
+      padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #1f1f29; color: #aaa; font-size: 0.85rem;
+    }
+
+    .chat-close {
+      background: transparent; border: 0; color: #777; font-size: 1.1rem; cursor: pointer;
+    }
+
+    .chat-log {
+      flex: 1; overflow-y: auto; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.65rem;
+    }
+
+    .chat-row { display: flex; }
+    .chat-row.user { justify-content: flex-end; }
+
+    .chat-bubble {
+      max-width: min(82vw, 520px); padding: 0.7rem 0.85rem; border-radius: 14px;
+      background: #171720; color: #f3f3f3; font-size: 0.84rem; line-height: 1.45;
+      border: 1px solid #232330; white-space: pre-wrap;
+    }
+
+    .chat-row.user .chat-bubble {
+      background: #23253a; border-color: #36395a;
+    }
+
+    .chat-meta { font-size: 0.7rem; color: #666; margin-bottom: 0.3rem; }
+
+    .chat-buttons {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.5rem; margin-top: 0.65rem;
+    }
+
+    .chat-chip {
+      border: 1px solid #313149; background: #12121a; color: #ddd; border-radius: 10px;
+      padding: 0.55rem 0.7rem; font-size: 0.77rem; cursor: pointer; text-align: left;
+    }
+
+    .chat-chip small { display: block; color: #7a7a90; margin-top: 0.2rem; }
+
+    .chat-commands-wrap {
+      border-top: 1px solid #1f1f29; padding: 0.5rem 0.75rem 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .chat-command-grid {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.4rem;
+    }
+
+    .chat-command-btn {
+      min-height: 40px; border-radius: 10px; border: 1px solid #313149;
+      background: #12121a; color: #f3f3f7; padding: 0.45rem 0.3rem;
+      font-size: 0.72rem; font-weight: 600; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.15rem;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .chat-command-btn .cmd-emoji { font-size: 1.1rem; }
+    .chat-command-btn .cmd-label { font-size: 0.65rem; line-height: 1.1; }
+
+    .chat-command-btn:hover { border-color: #4a4a68; background: #171722; }
+    .chat-command-btn:active { transform: scale(0.98); }
+
+    /* Session History Panel */
+    .history-btn {
+      background: transparent; border: 1px solid #333; color: #888;
+      font-size: 0.8rem; padding: 0.5rem 1rem; border-radius: 8px;
+      cursor: pointer; margin-top: 0.5rem; transition: all 0.2s; width: 100%;
+    }
+    .history-btn:hover { border-color: #6366f1; color: #6366f1; }
+
+    .history-overlay {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(10, 10, 15, 0.97);
+      display: flex; flex-direction: column;
+      transform: translateY(100%); transition: transform 0.25s ease;
+    }
+    .history-overlay.open { transform: translateY(0); }
+
+    .history-header {
+      padding: 1rem 1.5rem; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid #1f1f29;
+    }
+    .history-header h2 { font-size: 1rem; color: #fff; font-weight: 600; }
+    .history-close {
+      background: transparent; border: 0; color: #777; font-size: 1.3rem;
+      cursor: pointer; padding: 0.25rem;
+    }
+
+    .history-list {
+      flex: 1; overflow-y: auto; padding: 0.75rem 1rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+
+    .history-empty {
+      text-align: center; color: #555; padding: 3rem 1rem;
+      font-size: 0.9rem;
+    }
+
+    .history-card {
+      background: #16161e; border: 1px solid #2a2a35; border-radius: 12px;
+      padding: 0.85rem 1rem; cursor: pointer; transition: all 0.2s;
+    }
+    .history-card:hover { border-color: #444; background: #1a1a2e; }
+    .history-card:active { transform: scale(0.98); }
+
+    .history-card-top {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .history-card-date { font-size: 0.78rem; color: #aaa; font-weight: 500; }
+    .history-card-duration { font-size: 0.72rem; color: #666; }
+    .history-card-summary {
+      font-size: 0.8rem; color: #888; line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .history-card-msgs { font-size: 0.68rem; color: #555; margin-top: 0.25rem; }
+
+    /* Session Detail View */
+    .history-detail {
+      display: none; flex-direction: column; flex: 1; overflow: hidden;
+    }
+    .history-detail.visible { display: flex; }
+    .history-detail-header {
+      padding: 0.75rem 1rem; border-bottom: 1px solid #1f1f29;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .history-back {
+      background: transparent; border: 0; color: #888; font-size: 1rem;
+      cursor: pointer; padding: 0.25rem;
+    }
+    .history-back:hover { color: #fff; }
+    .history-detail-meta { font-size: 0.78rem; color: #aaa; }
+
+    .history-transcript {
+      flex: 1; overflow-y: auto; padding: 0.85rem 1rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+
+    .ht-msg { max-width: 85%; padding: 0.6rem 0.8rem; border-radius: 12px; font-size: 0.82rem; line-height: 1.4; }
+    .ht-msg.user { align-self: flex-end; background: #23253a; color: #e0e0e0; border: 1px solid #36395a; }
+    .ht-msg.assistant { align-self: flex-start; background: #171720; color: #ccc; border: 1px solid #232330; }
+    .ht-msg.tool {
+      align-self: flex-start; background: #0f1a0f; color: #6b9; border: 1px solid #1a2e1a;
+      font-size: 0.75rem; font-family: monospace;
+    }
+    .ht-msg .ht-time { font-size: 0.65rem; color: #555; margin-bottom: 0.2rem; }
+
+    @media (max-width: 600px) {
+      .chat-command-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .chat-bubble { max-width: 88vw; }
+    }
+  </style>
 </head>
 <body>
-
-<div class="card">
-  <h1>🎙️ OpenClaw Voice</h1>
-  <p class="subtitle">Talk to your agents</p>
-
-  <div id="statusBadge" class="status disconnected">Disconnected</div>
-
-  <div id="authSection">
-    <select id="agentSelect" disabled>
-      <option>Loading agents...</option>
-    </select>
-
-    <div class="controls">
-      <button id="callBtn" class="btn-call" disabled>Connect</button>
-      <button id="muteBtn" class="btn-mute hidden" title="Mute">🎤</button>
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <h1>🐺 OpenClaw Voice</h1>
+      <p class="subtitle">Sign in with Google before you let the wolves loose.</p>
+      <div id="google-signin-slot"></div>
+      <div id="auth-user" class="auth-user hidden">
+        <img id="auth-user-avatar" alt="">
+        <span id="auth-user-name"></span>
+      </div>
+      <div id="auth-error" class="auth-error"></div>
     </div>
-
-    <div id="errorMessage" class="error-message hidden" role="status" aria-live="polite"></div>
   </div>
 
-  <div id="userInfo" class="user-info"></div>
-</div>
+  <div id="app-shell" class="hidden">
+    <div class="topbar">
+      <div class="account-pill">
+        <img id="account-avatar" alt="">
+        <span id="account-name"></span>
+        <button id="logout-btn" class="logout-btn">Logout</button>
+      </div>
+    </div>
 
-<script type="module">
-import { Room, RoomEvent, Track, ConnectionState } from 'https://esm.sh/livekit-client@2';
+    <div id="select-screen">
+      <div class="header">
+        <h1>🐺 OpenClaw Voice</h1>
+        <p class="subtitle">Pick an agent, start talking</p>
+      </div>
+      <div class="agent-grid" id="agent-grid"></div>
+      <div class="call-section">
+        <button id="connect-btn" class="btn btn-connect">Connect</button>
+        <button id="new-session-btn" class="btn-new-session">🔄 New Session</button>
+        <!-- HIDDEN: /api/sessions not available yet
+        <button id="history-btn" class="history-btn">📜 Past Sessions</button>
+        -->
+        <div id="session-indicator" class="session-indicator"></div>
+        <div id="status" class="status status-disconnected">Checking login...</div>
+      </div>
+    </div>
 
-const $ = (sel) => document.querySelector(sel);
-const agentSelect = $('#agentSelect');
-const callBtn = $('#callBtn');
-const muteBtn = $('#muteBtn');
-const statusBadge = $('#statusBadge');
-const userInfo = $('#userInfo');
-const errorMessage = $('#errorMessage');
+    <div id="call-screen" class="call-active">
+      <div class="call-participants">
+        <div class="participant" id="user-participant">
+          <div class="participant-ring idle" id="user-ring">
+            <div class="user-icon">🎤</div>
+          </div>
+          <div class="participant-label" id="user-label">You</div>
+        </div>
+        <div class="participant" id="agent-participant">
+          <div class="participant-ring idle" id="agent-ring">
+            <img id="call-avatar" class="participant-img" src="" alt="">
+          </div>
+          <div class="participant-label" id="agent-label"></div>
+        </div>
+      </div>
 
-let room = null;
-let connected = false;
-let muted = false;
-let errorTimer = null;
+      <div id="speaking-status" class="speaking-status">Waiting for voice...</div>
 
-function setStatus(state, text) {
-  statusBadge.className = `status ${state}`;
-  statusBadge.textContent = text || state.charAt(0).toUpperCase() + state.slice(1);
-  if (state === 'connecting') statusBadge.classList.add('pulse');
-}
+      <div id="waveform" class="waveform">
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
 
-function showError(message) {
-  if (!message) return;
-  if (errorTimer) clearTimeout(errorTimer);
-  errorMessage.textContent = message;
-  errorMessage.classList.remove('hidden');
-  errorTimer = window.setTimeout(() => {
-    errorMessage.textContent = '';
-    errorMessage.classList.add('hidden');
-  }, 5000);
-}
+      <div id="call-timer" class="call-timer">00:00</div>
 
-function hideError() {
-  if (errorTimer) clearTimeout(errorTimer);
-  errorMessage.textContent = '';
-  errorMessage.classList.add('hidden');
-}
+      <!-- HIDDEN: transcript panel disabled until /api/live-transcript is available
+      <div id="transcript-panel" class="transcript-panel">
+        <div id="transcript-log" class="transcript-log"></div>
+      </div>
+      -->
 
-async function fetchJson(url, opts) {
-  try {
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const error = new Error(data.error || 'Request failed');
-      error.status = res.status;
-      throw error;
+      <div class="call-actions">
+        <div class="call-action-wrap">
+          <button id="mute-btn" class="btn-mute" title="Mute">🎤</button>
+          <div class="call-action-label" id="mute-label">Mute</div>
+        </div>
+        <div class="call-action-wrap">
+          <button id="end-call-btn" class="btn-end-call" title="End call">
+            <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.73-1.68-1.36-2.66-1.85a.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+          </button>
+          <div class="call-action-label">End call</div>
+        </div>
+        <div class="call-action-wrap">
+          <button id="new-call-btn" class="btn-new-call" title="New session">⚡</button>
+          <div class="call-action-label">New session</div>
+        </div>
+      </div>
+
+      <button id="audio-btn" class="audio-enable-btn">Enable audio</button>
+      <p id="audio-hint" class="hint">Tap if your phone blocks playback</p>
+    </div>
+  </div>
+
+  <div id="history-overlay" class="history-overlay" aria-hidden="true">
+    <div class="history-header">
+      <h2 id="history-title">📜 Past Sessions</h2>
+      <button id="history-close" class="history-close" type="button">✕</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+    <div id="history-detail" class="history-detail">
+      <div class="history-detail-header">
+        <button id="history-back" class="history-back" type="button">← Back</button>
+        <span id="history-detail-meta" class="history-detail-meta"></span>
+      </div>
+      <div id="history-transcript" class="history-transcript"></div>
+    </div>
+  </div>
+
+  <div id="remote-audio-container" style="display:none;"></div>
+
+  <button id="chat-toggle" class="chat-toggle" type="button" aria-label="Open command chat">💬</button>
+
+  <div id="chat-panel" class="chat-panel" aria-hidden="true">
+    <div class="chat-panel-header">
+      <span>Slash commands</span>
+      <button id="chat-close" class="chat-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div id="chat-log" class="chat-log"></div>
+    <div class="chat-commands-wrap">
+      <div class="chat-command-grid">
+        <button class="chat-command-btn" type="button" data-command="/help"><span class="cmd-emoji">📋</span><span class="cmd-label">Help</span></button>
+        <button class="chat-command-btn" type="button" data-command="/status"><span class="cmd-emoji">📊</span><span class="cmd-label">Status</span></button>
+        <button class="chat-command-btn" type="button" data-command="/whoami"><span class="cmd-emoji">👤</span><span class="cmd-label">Me</span></button>
+        <button class="chat-command-btn" type="button" data-command="/model"><span class="cmd-emoji">🤖</span><span class="cmd-label">Model</span></button>
+        <button class="chat-command-btn" type="button" data-command="/agent"><span class="cmd-emoji">🔄</span><span class="cmd-label">Agent</span></button>
+        <button class="chat-command-btn" type="button" data-command="/mute"><span class="cmd-emoji">🔇</span><span class="cmd-label">Mute</span></button>
+        <button class="chat-command-btn" type="button" data-command="/new"><span class="cmd-emoji">✨</span><span class="cmd-label">New</span></button>
+        <button class="chat-command-btn" type="button" data-command="/stop"><span class="cmd-emoji">🛑</span><span class="cmd-label">Stop</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      Room,
+      RoomEvent,
+      ParticipantEvent,
+      ConnectionState,
+    } from 'https://esm.sh/livekit-client@2';
+
+    const GOOGLE_CLIENT_ID = '__GOOGLE_CLIENT_ID__';
+
+    const AGENTS = [
+      { id: 'sevro',   name: 'Sevro',   emoji: '🐺', tagline: 'Feral genius. Ride or die.' },
+      { id: 'cassius', name: 'Cassius', emoji: '☀️', tagline: 'Golden eloquence.' },
+      { id: 'mustang', name: 'Mustang', emoji: '🐎', tagline: 'Sharp mind, warm heart.' },
+      { id: 'reaper',  name: 'Reaper',  emoji: '⚔️', tagline: 'Cold. Tactical. Decisive.' },
+      { id: 'sanaa',   name: 'Sanaa',   emoji: '✨', tagline: 'Radiance and clarity.' },
+      { id: 'sophie',  name: 'Sophie',  emoji: '🌟', tagline: 'Telepathic kindness.' },
+      { id: 'main',    name: 'CynicalHelper', emoji: '🦞', tagline: 'Sarcastic but effective.' },
+      { id: 'trump',   name: 'Trump',   emoji: '🇺🇸', tagline: 'Tremendous. Believe me.' },
+    ];
+
+    const LIVEKIT_URL = window.LIVEKIT_URL || (window.location.protocol === 'https:' ? `wss://${window.location.host}/livekit` : 'ws://localhost:7880');
+
+    const authScreen = document.getElementById('auth-screen');
+    const appShell = document.getElementById('app-shell');
+    const authError = document.getElementById('auth-error');
+    const googleSigninSlot = document.getElementById('google-signin-slot');
+    const authUser = document.getElementById('auth-user');
+    const authUserAvatar = document.getElementById('auth-user-avatar');
+    const authUserName = document.getElementById('auth-user-name');
+    const accountAvatar = document.getElementById('account-avatar');
+    const accountName = document.getElementById('account-name');
+    const logoutBtn = document.getElementById('logout-btn');
+    const grid = document.getElementById('agent-grid');
+    const connectBtn = document.getElementById('connect-btn');
+    const statusEl = document.getElementById('status');
+    const selectScreen = document.getElementById('select-screen');
+    const callScreen = document.getElementById('call-screen');
+    const callAvatar = document.getElementById('call-avatar');
+    const endCallBtn = document.getElementById('end-call-btn');
+    const newCallBtn = document.getElementById('new-call-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const muteLabel = document.getElementById('mute-label');
+    const audioBtn = document.getElementById('audio-btn');
+    const audioHint = document.getElementById('audio-hint');
+    const remoteAudioContainer = document.getElementById('remote-audio-container');
+    const newSessionBtn = document.getElementById('new-session-btn');
+    const sessionIndicator = document.getElementById('session-indicator');
+    const userRing = document.getElementById('user-ring');
+    const agentRing = document.getElementById('agent-ring');
+    const userLabel = document.getElementById('user-label');
+    const agentLabel = document.getElementById('agent-label');
+    const speakingStatus = document.getElementById('speaking-status');
+    const waveform = document.getElementById('waveform');
+    const callTimer = document.getElementById('call-timer');
+    const chatToggle = document.getElementById('chat-toggle');
+    const chatPanel = document.getElementById('chat-panel');
+    const chatClose = document.getElementById('chat-close');
+    const chatLog = document.getElementById('chat-log');
+    const chatCommandButtons = Array.from(document.querySelectorAll('.chat-command-btn'));
+    const historyBtn = document.getElementById('history-btn'); // may be null (commented out)
+    const historyOverlay = document.getElementById('history-overlay');
+    const historyClose = document.getElementById('history-close');
+    const historyList = document.getElementById('history-list');
+    const historyDetail = document.getElementById('history-detail');
+    const historyBack = document.getElementById('history-back');
+    const historyTitle = document.getElementById('history-title');
+    const historyDetailMeta = document.getElementById('history-detail-meta');
+    const historyTranscript = document.getElementById('history-transcript');
+
+    const COMMANDS = [
+      { command: '/help', description: 'Show available commands' },
+      { command: '/status', description: 'Show current call status' },
+      { command: '/whoami', description: 'Show your signed-in account' },
+      { command: '/new', description: 'Start a fresh session' },
+      { command: '/stop', description: 'End the current call' },
+      { command: '/mute', description: 'Toggle microphone mute' },
+      { command: '/agent', description: 'Switch to another agent' },
+      { command: '/model', description: 'Show or switch the active model' },
+    ];
+
+    let room = null;
+    let audioElements = new Map();
+    let selectedAgent = null;
+    let timerInterval = null;
+    let callStartTime = null;
+    let currentUser = null;
+
+    let isMuted = false;
+    let userSpeaking = false;
+    let agentSpeaking = false;
+    let userHasSpoken = false;
+    let processingTimeout = null;
+    let isProcessing = false;
+    let currentModel = null;
+    let currentSessionId = null;
+    let chatOpen = false;
+
+    let visibleAgents = AGENTS;
+    let defaultAgentId = 'sevro';
+
+    function formatCommandResponse(data) {
+      if (data.status) {
+        return [
+          `Agent: ${data.status.agent}`,
+          `Model: ${data.status.model}`,
+          `Session: ${data.status.sessionId}`,
+          `Duration: ${data.status.callDuration}`,
+          `Muted: ${data.status.muted ? 'yes' : 'no'}`,
+          `Connected: ${data.status.connected ? 'yes' : 'no'}`,
+        ].join('\n');
+      }
+      if (data.user) {
+        return [
+          data.user.name || 'Unknown user',
+          data.user.email || '',
+          `Default agent: ${data.user.defaultAgent}`,
+        ].filter(Boolean).join('\n');
+      }
+      if (data.commands) {
+        return data.commands.map(item => `${item.command}  ${item.description}`).join('\n');
+      }
+      return data.message || 'Done';
     }
-    return data;
-  } catch (err) {
-    if (err instanceof TypeError) {
-      const error = new Error('Server unreachable');
-      error.cause = err;
-      throw error;
+
+    function addChatMessage(role, text, extra = {}) {
+      const row = document.createElement('div');
+      row.className = `chat-row ${role}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+
+      const meta = document.createElement('div');
+      meta.className = 'chat-meta';
+      meta.textContent = role === 'user' ? 'You' : 'System';
+      bubble.appendChild(meta);
+
+      const body = document.createElement('div');
+      body.textContent = text;
+      bubble.appendChild(body);
+
+      if (extra.buttons?.length) {
+        const grid = document.createElement('div');
+        grid.className = 'chat-buttons';
+        extra.buttons.forEach((button) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'chat-chip';
+          chip.innerHTML = `${button.label}${button.description ? `<small>${button.description}</small>` : ''}`;
+          chip.addEventListener('click', () => runCommand(button.value, true));
+          grid.appendChild(chip);
+        });
+        bubble.appendChild(grid);
+      }
+
+      row.appendChild(bubble);
+      chatLog.appendChild(row);
+      chatLog.scrollTop = chatLog.scrollHeight;
     }
-    throw err;
-  }
-}
 
-async function init() {
-  const session = await fetchJson('/api/session');
-
-  if (session.authMode === 'demo') {
-    userInfo.innerHTML = '<span class="demo-badge">DEMO MODE</span>';
-  }
-
-  if (!session.authenticated && session.authMode !== 'demo') {
-    agentSelect.innerHTML = '<option>Sign in required</option>';
-    return;
-  }
-
-  // In demo mode, trigger session setup
-  if (session.authMode === 'demo' && !session.authenticated) {
-    await fetchJson('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-  }
-
-  const agentsData = await fetchJson('/api/agents');
-  agentSelect.innerHTML = '';
-  for (const agent of agentsData.agents) {
-    const opt = document.createElement('option');
-    opt.value = agent.id;
-    opt.textContent = `${agent.emoji || ''} ${agent.displayName || agent.id}`.trim();
-    agentSelect.appendChild(opt);
-  }
-  agentSelect.value = agentsData.lastAgent || agentsData.defaultAgent;
-  agentSelect.disabled = false;
-  callBtn.disabled = false;
-
-  if (session.authenticated) {
-    const name = session.name || session.email;
-    if (session.authMode !== 'demo') {
-      userInfo.textContent = name;
+    function setChatOpen(open) {
+      chatOpen = open;
+      chatPanel.classList.toggle('open', open);
+      chatPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
     }
-  }
-}
 
-callBtn.addEventListener('click', async () => {
-  if (connected) {
-    await disconnect();
-  } else {
-    await connect();
-  }
-});
+    async function applyClientAction(action) {
+      if (!action?.type) return;
+      if (action.type === 'disconnect') {
+        await disconnect();
+        return;
+      }
+      if (action.type === 'new_session') {
+        await newSession(true);
+        return;
+      }
+      if (action.type === 'switch_agent') {
+        const nextAgent = visibleAgents.find(agent => agent.id === action.agent);
+        if (nextAgent) {
+          selectAgent(nextAgent);
+          if (room) {
+            await disconnect();
+            await new Promise(r => setTimeout(r, 300));
+            await connect();
+          }
+        }
+        return;
+      }
+      if (action.type === 'refresh_call') {
+        currentModel = action.model || currentModel;
+        if (room) {
+          const sessionKey = `voice-session-${selectedAgent.id}`;
+          const existingSession = localStorage.getItem(sessionKey);
+          await disconnect();
+          if (existingSession) localStorage.setItem(sessionKey, existingSession);
+          await new Promise(r => setTimeout(r, 300));
+          await connect();
+        }
+        return;
+      }
+      if (action.type === 'set_mute') {
+        await setMuteState(Boolean(action.muted));
+      }
+    }
 
-muteBtn.addEventListener('click', () => {
-  if (!room) return;
-  muted = !muted;
-  room.localParticipant.setMicrophoneEnabled(!muted);
-  muteBtn.textContent = muted ? '🔇' : '🎤';
-  muteBtn.classList.toggle('muted', muted);
-});
+    async function runCommand(rawCommand, fromButton = false) {
+      const command = (rawCommand || '').trim();
+      if (!command) return;
+      addChatMessage('user', command);
 
-async function connect() {
-  const agentId = agentSelect.value;
-  if (!agentId) return;
+      const elapsed = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+      const res = await fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          command,
+          agent: selectedAgent?.id,
+          sessionId: currentSessionId,
+          callDuration: elapsed,
+          connected: Boolean(room),
+          isMuted,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        addChatMessage('system', data.error || 'Command failed');
+        return;
+      }
+      if (data.model) currentModel = data.model;
+      addChatMessage('system', formatCommandResponse(data), { buttons: data.buttons });
+      await applyClientAction(data.client_action);
+    }
 
-  hideError();
-  setStatus('connecting', 'Connecting...');
-  callBtn.disabled = true;
+    function buildAgentGrid() {
+      grid.innerHTML = '';
+      visibleAgents.forEach(agent => {
+        const card = document.createElement('div');
+        card.className = 'agent-card';
+        card.dataset.agentId = agent.id;
+        card.innerHTML = `
+          <img class="agent-avatar" src="avatars/${agent.id}.png" alt="${agent.name}"
+               onerror="this.style.display='none'">
+          <div class="agent-name">${agent.emoji} ${agent.name}</div>
+          <div class="agent-tagline">${agent.tagline}</div>
+        `;
+        card.addEventListener('click', () => selectAgent(agent));
+        grid.appendChild(card);
+      });
+      const def = visibleAgents.find(a => a.id === defaultAgentId) || visibleAgents[0];
+      if (def) selectAgent(def);
+    }
 
-  try {
-    const tokenData = await fetchJson(`/api/token?agent=${encodeURIComponent(agentId)}`);
+    buildAgentGrid();
 
-    room = new Room({ adaptiveStream: true, dynacast: true });
+    function setAuthError(message = '') {
+      authError.textContent = message;
+      authError.style.display = message ? 'block' : 'none';
+    }
 
-    room.on(RoomEvent.Disconnected, () => {
-      setStatus('disconnected');
-      connected = false;
-      callBtn.textContent = 'Connect';
-      callBtn.classList.remove('active');
-      muteBtn.classList.add('hidden');
-      agentSelect.disabled = false;
+    function setUserUI(user) {
+      currentUser = user;
+      const name = user?.name || user?.email || '';
+      const picture = user?.picture || 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+      authUser.classList.toggle('hidden', !user);
+      authUserAvatar.src = picture;
+      authUserName.textContent = name;
+      accountAvatar.src = picture;
+      accountName.textContent = name;
+    }
+
+    function showAuthenticatedApp(user) {
+      // Apply per-user agent filtering
+      if (user.allowedAgents && user.allowedAgents.length > 0) {
+        visibleAgents = AGENTS.filter(a => user.allowedAgents.includes(a.id));
+      } else {
+        visibleAgents = AGENTS;
+      }
+      if (user.defaultAgent) {
+        defaultAgentId = user.defaultAgent;
+      }
+      currentModel = user.modelOverride || null;
+      buildAgentGrid();
+      setUserUI(user);
+      authScreen.classList.add('hidden');
+      appShell.classList.remove('hidden');
+      setAuthError('');
+      updateSessionIndicator();
+      setStatus(`Ready — ${selectedAgent.name}`, 'disconnected');
+    }
+
+    function showLogin() {
+      appShell.classList.add('hidden');
+      authScreen.classList.remove('hidden');
+      cleanupRemoteAudio();
+      if (room) {
+        room.disconnect();
+        room = null;
+      }
+    }
+
+    function selectAgent(agent) {
+      const scrollY = window.scrollY;
+      selectedAgent = agent;
+      document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('selected'));
+      document.querySelector(`[data-agent-id="${agent.id}"]`).classList.add('selected');
+      if (currentUser) {
+        statusEl.textContent = `Ready — ${agent.name}`;
+        statusEl.className = 'status status-disconnected';
+      }
+      updateSessionIndicator();
+      window.scrollTo(0, scrollY);
+    }
+
+    function updateSessionIndicator() {
+      if (!selectedAgent) return;
+      const sid = localStorage.getItem(`voice-session-${selectedAgent.id}`);
+      sessionIndicator.innerHTML = sid
+        ? `<span class="active">● Continuing session</span>`
+        : 'New session';
+    }
+
+    function clearSession() {
+      if (!selectedAgent) return;
+      localStorage.removeItem(`voice-session-${selectedAgent.id}`);
+      currentSessionId = null;
+      updateSessionIndicator();
+      setStatus(`Ready — ${selectedAgent.name} (new session)`, 'disconnected');
+    }
+
+    function setStatus(text, cls) {
+      statusEl.textContent = text;
+      statusEl.className = `status status-${cls}`;
+    }
+
+    function enterProcessing() {
+      if (isProcessing) return;
+      isProcessing = true;
+      updateSpeakingUI();
+    }
+
+    function exitProcessing() {
+      isProcessing = false;
+      if (processingTimeout) { clearTimeout(processingTimeout); processingTimeout = null; }
+    }
+
+    function onUserSpeakingChanged(speaking) {
+      userSpeaking = speaking;
+      if (speaking) {
+        userHasSpoken = true;
+        exitProcessing();
+      } else if (userHasSpoken && !agentSpeaking) {
+        if (processingTimeout) clearTimeout(processingTimeout);
+        processingTimeout = setTimeout(() => {
+          if (!userSpeaking && !agentSpeaking && userHasSpoken) {
+            enterProcessing();
+          }
+        }, 400);
+      }
+      updateSpeakingUI();
+    }
+
+    function onAgentSpeakingChanged(speaking) {
+      agentSpeaking = speaking;
+      if (speaking) {
+        exitProcessing();
+        userHasSpoken = false;
+      }
+      updateSpeakingUI();
+    }
+
+    function updateSpeakingUI() {
+      userRing.className = 'participant-ring ' + (userSpeaking ? 'speaking' : 'idle');
+      userLabel.className = 'participant-label' + (userSpeaking ? ' speaking' : '');
+
+      if (agentSpeaking) {
+        agentRing.className = 'participant-ring speaking';
+        agentLabel.className = 'participant-label speaking';
+      } else if (isProcessing) {
+        agentRing.className = 'participant-ring processing';
+        agentLabel.className = 'participant-label processing';
+      } else if (userSpeaking) {
+        agentRing.className = 'participant-ring listening';
+        agentLabel.className = 'participant-label listening';
+      } else {
+        agentRing.className = 'participant-ring idle';
+        agentLabel.className = 'participant-label';
+      }
+
+      if (userSpeaking) {
+        waveform.className = 'waveform user-active';
+      } else if (agentSpeaking) {
+        waveform.className = 'waveform agent-active';
+      } else if (isProcessing) {
+        waveform.className = 'waveform processing';
+      } else {
+        waveform.className = 'waveform';
+      }
+
+      if (userSpeaking && agentSpeaking) {
+        speakingStatus.textContent = 'Both speaking';
+        speakingStatus.className = 'speaking-status user-talking';
+      } else if (userSpeaking) {
+        speakingStatus.textContent = '🎤 You\'re speaking...';
+        speakingStatus.className = 'speaking-status user-talking';
+      } else if (isProcessing) {
+        speakingStatus.innerHTML = `⏳ ${selectedAgent.name} is thinking<span class="processing-dots"></span>`;
+        speakingStatus.className = 'speaking-status processing';
+      } else if (agentSpeaking) {
+        speakingStatus.textContent = `${selectedAgent.emoji} ${selectedAgent.name} is speaking...`;
+        speakingStatus.className = 'speaking-status agent-talking';
+      } else {
+        speakingStatus.textContent = 'Listening...';
+        speakingStatus.className = 'speaking-status';
+      }
+    }
+
+    function startTimer() {
+      callStartTime = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const sec = String(elapsed % 60).padStart(2, '0');
+        callTimer.textContent = `${min}:${sec}`;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = null;
+      callTimer.textContent = '00:00';
+    }
+
+    async function getToken(agentId) {
+      const sessionKey = `voice-session-${agentId}`;
+      let sessionId = localStorage.getItem(sessionKey);
+      let url = `/api/token?agent=${encodeURIComponent(agentId)}`;
+      if (sessionId) url += `&session=${encodeURIComponent(sessionId)}`;
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (res.status === 401) {
+        showLogin();
+        throw new Error('Your login expired. Sign in again.');
+      }
+      if (!res.ok) throw new Error(`Token request failed: ${res.status}`);
+      const data = await res.json();
+      const parts = data.room.split('-');
+      localStorage.setItem(sessionKey, parts.slice(2).join('-'));
+      currentSessionId = data.sessionId || parts.slice(2).join('-');
+      currentModel = data.model || currentModel;
+      return data.participantToken || data.token;
+    }
+
+    function cleanupRemoteAudio() {
+      for (const el of audioElements.values()) {
+        el.pause();
+        el.srcObject = null;
+        el.remove();
+      }
+      audioElements = new Map();
+      audioBtn.style.display = 'none';
+      audioHint.classList.remove('visible');
+    }
+
+    async function startRoomAudio() {
+      if (!room) return;
+      try {
+        await room.startAudio();
+        audioBtn.style.display = 'none';
+        audioHint.classList.remove('visible');
+      } catch (err) {
+        audioBtn.style.display = 'block';
+        audioHint.classList.add('visible');
+      }
+    }
+
+    function attachRemoteTrack(track, publication, participant) {
+      if (track.kind !== 'audio') return;
+      const audioEl = track.attach();
+      audioEl.autoplay = true;
+      audioEl.playsInline = true;
+      audioEl.dataset.sid = publication.trackSid || publication.sid || track.sid || participant.identity;
+      remoteAudioContainer.appendChild(audioEl);
+      audioElements.set(audioEl.dataset.sid, audioEl);
+      startRoomAudio();
+    }
+
+    function detachRemoteTrack(track) {
+      if (track.kind !== 'audio') return;
+      for (const el of track.detach()) {
+        const sid = el.dataset.sid;
+        if (sid) audioElements.delete(sid);
+        el.remove();
+      }
+    }
+
+    // Previous transcript loading removed — all content comes from backend polling
+
+    function showCallScreen() {
+      selectScreen.style.display = 'none';
+      callScreen.classList.add('visible');
+      chatToggle.classList.add('visible');
+      callAvatar.src = `avatars/${selectedAgent.id}.png`;
+      agentLabel.textContent = selectedAgent.name;
+      speakingStatus.textContent = 'Connecting...';
+      speakingStatus.className = 'speaking-status';
+      const _tl = document.getElementById('transcript-log');
+      if (_tl) _tl.innerHTML = '';
+      // Previous session context will come from backend polling — no pre-loading
+      userSpeaking = false;
+      agentSpeaking = false;
+      isProcessing = false;
+      userHasSpoken = false;
+      updateSpeakingUI();
+    }
+
+    function showSelectScreen() {
+      callScreen.classList.remove('visible');
+      selectScreen.style.display = '';
+      chatToggle.classList.remove('visible');
+      setChatOpen(false);
+      stopTimer();
+      isMuted = false;
+      muteBtn.classList.remove('muted');
+      muteBtn.textContent = '🎤';
+      muteLabel.textContent = 'Mute';
+    }
+
+    async function connect() {
+      if (!selectedAgent) return;
+      const agentId = selectedAgent.id;
+      setStatus('Connecting...', 'connecting');
+      connectBtn.disabled = true;
+      showCallScreen();
+
+      try {
+        const token = await getToken(agentId);
+        room = new Room();
+
+        room.on(RoomEvent.TrackSubscribed, attachRemoteTrack);
+        room.on(RoomEvent.TrackUnsubscribed, detachRemoteTrack);
+
+        room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+          const blocked = room.canPlaybackAudio === false;
+          audioBtn.style.display = blocked ? 'block' : 'none';
+          audioHint.classList.toggle('visible', blocked);
+        });
+
+        room.on(RoomEvent.LocalTrackPublished, () => {
+          room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking) => {
+            onUserSpeakingChanged(speaking);
+          });
+        });
+
+        room.on(RoomEvent.ParticipantConnected, (participant) => {
+          participant.on(ParticipantEvent.IsSpeakingChanged, (speaking) => {
+            onAgentSpeakingChanged(speaking);
+          });
+        });
+
+        room.on(RoomEvent.Connected, () => {
+          speakingStatus.textContent = 'Connected — speak!';
+          setStatus(`Connected — ${selectedAgent.name}`, 'connected');
+          connectBtn.disabled = false;
+          startTimer();
+
+          for (const p of room.remoteParticipants.values()) {
+            p.on(ParticipantEvent.IsSpeakingChanged, (speaking) => {
+              onAgentSpeakingChanged(speaking);
+            });
+          }
+        });
+
+        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const localId = room.localParticipant.identity;
+          let newUser = false;
+          let newAgent = false;
+          for (const s of speakers) {
+            if (s.identity === localId) newUser = true;
+            else newAgent = true;
+          }
+          if (newUser !== userSpeaking) onUserSpeakingChanged(newUser);
+          if (newAgent !== agentSpeaking) onAgentSpeakingChanged(newAgent);
+        });
+
+        // All transcript rendering comes from backend polling — no client-side transcription
+        startTranscriptPolling();
+
+        room.on(RoomEvent.Disconnected, () => {
+          stopTranscriptPolling();
+          setStatus(`Ready — ${selectedAgent.name}`, 'disconnected');
+          connectBtn.textContent = 'Connect';
+          connectBtn.className = 'btn btn-connect';
+          connectBtn.disabled = false;
+          cleanupRemoteAudio();
+          showSelectScreen();
+          userSpeaking = false;
+          agentSpeaking = false;
+          exitProcessing();
+          currentSessionId = null;
+          room = null;
+        });
+
+        room.on(RoomEvent.ConnectionStateChanged, (state) => {
+          if (state === ConnectionState.Reconnecting) {
+            speakingStatus.textContent = 'Reconnecting...';
+          }
+        });
+
+        await room.connect(LIVEKIT_URL, token);
+        await startRoomAudio();
+        await room.localParticipant.setMicrophoneEnabled(true);
+      } catch (err) {
+        console.error('Connection failed:', err);
+        setStatus(`Error: ${err.message}`, 'error');
+        connectBtn.disabled = false;
+        cleanupRemoteAudio();
+        showSelectScreen();
+        room = null;
+      }
+    }
+
+    async function disconnect() {
+      if (room) await room.disconnect();
+    }
+
+    async function newSession(shouldReconnect = true) {
+      if (!selectedAgent) return;
+      const agent = selectedAgent;
+      if (room) await room.disconnect();
+      await new Promise(r => setTimeout(r, 500));
+      localStorage.removeItem(`voice-session-${agent.id}`);
+      currentSessionId = null;
+      updateSessionIndicator();
+      if (shouldReconnect) connect();
+    }
+
+    async function handleGoogleCredential(response) {
+      setAuthError('');
+      try {
+        const res = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ token: response.credential }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Access denied');
+        }
+        await bootstrapAuth();
+      } catch (error) {
+        setAuthError(error.message || 'Sign-in failed');
+      }
+    }
+
+    let _gsiRetries = 0;
+    function initGoogleSignIn(clientId) {
+      if (!clientId) {
+        setAuthError('Google sign-in is not configured on the server.');
+        return;
+      }
+
+      if (!window.google?.accounts?.id) {
+        _gsiRetries++;
+        if (_gsiRetries < 50) { // ~10 seconds
+          setTimeout(() => initGoogleSignIn(clientId), 200);
+          return;
+        }
+        // Fallback: show a manual sign-in link
+        console.warn('Google GSI script failed to load after 10s, showing fallback');
+        googleSigninSlot.innerHTML = '<button onclick="window.location.reload()" style="padding:12px 24px;font-size:1rem;border-radius:8px;border:1px solid #555;background:#1a1a2e;color:#fff;cursor:pointer">🔄 Reload to sign in with Google</button>';
+        return;
+      }
+
+      // GSI object exists but may not be fully ready — wait a tick on first hit
+      if (_gsiRetries > 0) {
+        _gsiRetries = 0;
+        setTimeout(() => initGoogleSignIn(clientId), 100);
+        return;
+      }
+
+      googleSigninSlot.innerHTML = '';
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        ux_mode: 'popup',
+        use_fedcm_for_prompt: true,
+      });
+      window.google.accounts.id.renderButton(googleSigninSlot, {
+        theme: 'filled_black',
+        size: 'large',
+        type: 'standard',
+        shape: 'pill',
+        text: 'signin_with',
+        width: 280,
+      });
+
+      // Safety net: if slot still empty after 3s, force re-render once
+      let _safetyFired = false;
+      setTimeout(() => {
+        if (!googleSigninSlot.innerHTML.trim() && !_safetyFired) {
+          _safetyFired = true;
+          console.warn('GSI renderButton produced empty slot, retrying');
+          // Show debug info to help diagnose
+          const dbg = document.createElement('div');
+          dbg.style.cssText = 'color:#f66;font-size:0.75rem;margin-top:12px;';
+          dbg.textContent = `GSI debug: google=${!!window.google?.accounts?.id}, origin=${location.origin}, ua=${navigator.userAgent.substring(0,60)}`;
+          googleSigninSlot.parentElement.appendChild(dbg);
+          initGoogleSignIn(clientId);
+        }
+      }, 3000);
+    }
+
+    async function bootstrapAuth() {
+      try {
+        const res = await fetch('/api/session', { credentials: 'same-origin' });
+        const data = await res.json();
+        const clientId = data.googleClientId || GOOGLE_CLIENT_ID;
+        if (data.authenticated) {
+          showAuthenticatedApp(data);
+        } else {
+          showLogin();
+          initGoogleSignIn(clientId);
+        }
+      } catch (error) {
+        setAuthError('Could not reach the server.');
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+      currentUser = null;
+      showSelectScreen();
+      showLogin();
+      initGoogleSignIn(GOOGLE_CLIENT_ID);
+    }
+
+    audioBtn.addEventListener('click', startRoomAudio);
+    connectBtn.addEventListener('click', () => { if (!room) connect(); });
+    // Mute toggle
+    async function setMuteState(nextMuted) {
+      if (!room) return;
+      isMuted = nextMuted;
+      await room.localParticipant.setMicrophoneEnabled(!isMuted);
+      muteBtn.classList.toggle('muted', isMuted);
+      muteBtn.textContent = isMuted ? '🔇' : '🎤';
+      muteLabel.textContent = isMuted ? 'Unmute' : 'Mute';
+      if (isMuted) {
+        userSpeaking = false;
+        updateSpeakingUI();
+      }
+    }
+
+    async function toggleMute() {
+      await setMuteState(!isMuted);
+    }
+
+    endCallBtn.addEventListener('click', disconnect);
+    newCallBtn.addEventListener('click', newSession);
+    muteBtn.addEventListener('click', toggleMute);
+    newSessionBtn.addEventListener('click', clearSession);
+    logoutBtn.addEventListener('click', logout);
+    chatToggle.addEventListener('click', () => setChatOpen(!chatOpen));
+    chatClose.addEventListener('click', () => setChatOpen(false));
+    chatCommandButtons.forEach((button) => {
+      button.addEventListener('click', () => runCommand(button.dataset.command, true));
     });
 
-    room.on(RoomEvent.TrackSubscribed, (track) => {
-      if (track.kind === Track.Kind.Audio) {
-        const el = track.attach();
-        el.id = 'agent-audio';
-        document.body.appendChild(el);
-      }
-    });
+    // ── Backend Transcript Polling ──
+    let transcriptPollTimer = null;
+    let transcriptPollIndex = 0;
 
-    room.on(RoomEvent.TrackUnsubscribed, (track) => {
-      if (track.kind === Track.Kind.Audio) {
-        const el = document.getElementById('agent-audio');
-        if (el) el.remove();
-      }
-    });
-
-    // Resolve LiveKit URL: use /livekit proxy when accessed via HTTPS (external)
-    const livekitUrl = window.location.protocol === 'https:'
-      ? `wss://${window.location.host}/livekit`
-      : tokenData.serverUrl;
-
-    await room.connect(livekitUrl, tokenData.participantToken);
-    try {
-      await room.localParticipant.setMicrophoneEnabled(true);
-    } catch (err) {
-      if (err && err.name === 'NotAllowedError') {
-        showError('Microphone access denied');
-      }
-      throw err;
+    function startTranscriptPolling() {
+      // STUBBED: /api/live-transcript not available yet
+      // stopTranscriptPolling();
+      // transcriptPollIndex = 0;
+      // transcriptPollTimer = setInterval(pollBackendTranscript, 1000);
     }
 
-    connected = true;
-    muted = false;
-    setStatus('connected', `Connected — ${agentId}`);
-    callBtn.textContent = 'Disconnect';
-    callBtn.classList.add('active');
-    callBtn.disabled = false;
-    muteBtn.classList.remove('hidden');
-    muteBtn.textContent = '🎤';
-    muteBtn.classList.remove('muted');
-    agentSelect.disabled = true;
-
-  } catch (err) {
-    console.error('Connection failed:', err);
-    if (err && err.message === 'Server unreachable') {
-      showError('Server unreachable');
-      setStatus('disconnected');
-    } else if (err && err.name === 'NotAllowedError') {
-      setStatus('disconnected');
-    } else if (err && err.message) {
-      showError(err.message);
-      setStatus('disconnected', 'Connection failed');
-    } else {
-      showError('Connection failed');
-      setStatus('disconnected', 'Connection failed');
+    function stopTranscriptPolling() {
+      if (transcriptPollTimer) {
+        clearInterval(transcriptPollTimer);
+        transcriptPollTimer = null;
+      }
     }
 
-    if (room) {
-      await room.disconnect().catch(() => undefined);
-      room = null;
+    async function pollBackendTranscript() {
+      if (!selectedAgent || !room) return;
+      try {
+        const params = new URLSearchParams({
+          agent: selectedAgent.id,
+          session: currentSessionId || '',
+          after: String(transcriptPollIndex),
+        });
+        const res = await fetch(`/api/live-transcript?${params}`, { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.live || !data.messages?.length) return;
+
+        const log = document.getElementById('transcript-log');
+        if (!log) return; // transcript panel may be commented out
+
+        for (const msg of data.messages) {
+          const role = String(msg.role || '').toLowerCase();
+          const entry = document.createElement('div');
+          entry.className = 'transcript-entry';
+
+          if (role.includes('user') || role === 'userrole.user') {
+            entry.innerHTML = `<span class="speaker user">You:</span><span class="text">${escapeHtml(msg.content || '')}</span>`;
+          } else if (role.includes('assistant') || role === 'userrole.assistant') {
+            const name = selectedAgent?.name || 'Agent';
+            entry.innerHTML = `<span class="speaker agent">${name}:</span><span class="text">${escapeHtml(msg.content || '')}</span>`;
+          } else if (role === 'tool_call') {
+            const content = `🔧 ${msg.name || 'tool'}(${JSON.stringify(msg.args || {}).slice(0, 80)})`;
+            entry.innerHTML = `<span class="speaker agent" style="color:#eab308">Tool:</span><span class="text" style="font-size:0.75rem;color:#999;font-family:monospace">${escapeHtml(content)}</span>`;
+          } else if (role === 'tool_result') {
+            const content = `← ${msg.name || 'result'}: ${(msg.content || '').slice(0, 150)}`;
+            entry.innerHTML = `<span class="speaker agent" style="color:#eab308">Tool:</span><span class="text" style="font-size:0.75rem;color:#999;font-family:monospace">${escapeHtml(content)}</span>`;
+          } else {
+            continue; // Skip unknown roles
+          }
+
+          log.appendChild(entry);
+        }
+
+        // Auto-scroll
+        const panel = document.getElementById('transcript-panel');
+        if (panel) panel.scrollTop = panel.scrollHeight;
+
+        transcriptPollIndex = data.total;
+      } catch (e) {
+        // Silent — don't break the call
+      }
     }
-    callBtn.disabled = false;
-    connected = false;
-    muted = false;
-    callBtn.textContent = 'Connect';
-    callBtn.classList.remove('active');
-    muteBtn.classList.add('hidden');
-    agentSelect.disabled = false;
-  }
-}
 
-async function disconnect() {
-  if (room) {
-    await room.disconnect();
-    room = null;
-  }
-  const el = document.getElementById('agent-audio');
-  if (el) el.remove();
-  connected = false;
-  muted = false;
-  setStatus('disconnected');
-  callBtn.textContent = 'Connect';
-  callBtn.classList.remove('active');
-  muteBtn.classList.add('hidden');
-  agentSelect.disabled = false;
-}
+    // ── Session History ──
 
-init().catch((err) => {
-  console.error('Initialization failed:', err);
-  showError(err && err.message === 'Server unreachable' ? 'Server unreachable' : 'Connection failed');
-});
-</script>
+    function setHistoryOpen(open) {
+      historyOverlay.classList.toggle('open', open);
+      historyOverlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+      if (open) loadHistory();
+    }
+
+    function showHistoryList() {
+      historyList.style.display = '';
+      historyDetail.classList.remove('visible');
+      historyTitle.textContent = `📜 Past Sessions — ${selectedAgent?.name || 'Agent'}`;
+    }
+
+    async function loadHistory() {
+      showHistoryList();
+      if (!selectedAgent) return;
+      historyList.innerHTML = '<div class="history-empty">Loading...</div>';
+
+      try {
+        const res = await fetch(`/api/sessions?agent=${encodeURIComponent(selectedAgent.id)}&limit=20`, {
+          credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error('Failed to load');
+        const data = await res.json();
+        const sessions = data.sessions || [];
+
+        if (sessions.length === 0) {
+          historyList.innerHTML = '<div class="history-empty">No past sessions yet.<br>Start a voice call and they\'ll show up here.</div>';
+          return;
+        }
+
+        historyList.innerHTML = '';
+        for (const s of sessions) {
+          const card = document.createElement('div');
+          card.className = 'history-card';
+
+          const date = s.started_at ? new Date(s.started_at) : null;
+          const dateStr = date ? date.toLocaleString(undefined, {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+          }) : 'Unknown';
+
+          const dur = s.duration_seconds || 0;
+          const durStr = dur < 60 ? `${Math.round(dur)}s` : `${Math.round(dur / 60)}m`;
+
+          card.innerHTML = `
+            <div class="history-card-top">
+              <span class="history-card-date">${dateStr}</span>
+              <span class="history-card-duration">${durStr}</span>
+            </div>
+            <div class="history-card-summary">${s.summary || 'No summary'}</div>
+            <div class="history-card-msgs">${s.message_count || 0} messages</div>
+          `;
+          card.addEventListener('click', () => loadSessionDetail(s.file));
+          historyList.appendChild(card);
+        }
+      } catch (err) {
+        historyList.innerHTML = `<div class="history-empty">Failed to load sessions: ${err.message}</div>`;
+      }
+    }
+
+    async function loadSessionDetail(filename) {
+      historyList.style.display = 'none';
+      historyDetail.classList.add('visible');
+      historyTranscript.innerHTML = '<div class="history-empty">Loading...</div>';
+
+      try {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(filename)}?agent=${encodeURIComponent(selectedAgent.id)}`,
+          { credentials: 'same-origin' }
+        );
+        if (!res.ok) throw new Error('Session not found');
+        const data = await res.json();
+
+        const date = data.started_at ? new Date(data.started_at) : null;
+        const dur = data.duration_seconds || 0;
+        const durStr = dur < 60 ? `${Math.round(dur)}s` : `${Math.round(dur / 60)}m`;
+        historyDetailMeta.textContent = `${date ? date.toLocaleString() : 'Unknown'} · ${durStr} · ${(data.messages || []).length} msgs`;
+
+        historyTranscript.innerHTML = '';
+        if (data.summary) {
+          const summaryEl = document.createElement('div');
+          summaryEl.className = 'ht-msg tool';
+          summaryEl.innerHTML = `<div class="ht-time">Summary</div>${data.summary}`;
+          historyTranscript.appendChild(summaryEl);
+        }
+
+        for (const msg of (data.messages || [])) {
+          const el = document.createElement('div');
+          const role = String(msg.role || '').toLowerCase();
+          let cls = 'assistant';
+          if (role.includes('user')) cls = 'user';
+          else if (role === 'tool_call' || role === 'tool_result') cls = 'tool';
+
+          el.className = `ht-msg ${cls}`;
+
+          let timeStr = '';
+          if (msg.ts) {
+            try {
+              const t = new Date(msg.ts);
+              timeStr = t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {}
+          }
+
+          let content = '';
+          if (role === 'tool_call') {
+            content = `🔧 ${msg.name || 'tool'}(${JSON.stringify(msg.args || {}).slice(0, 100)})`;
+          } else if (role === 'tool_result') {
+            content = `← ${msg.name || 'result'}: ${(msg.content || '').slice(0, 200)}`;
+          } else {
+            content = msg.content || '';
+          }
+
+          el.innerHTML = `${timeStr ? `<div class="ht-time">${timeStr}</div>` : ''}${escapeHtml(content)}`;
+          historyTranscript.appendChild(el);
+        }
+      } catch (err) {
+        historyTranscript.innerHTML = `<div class="history-empty">Failed: ${err.message}</div>`;
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    if (historyBtn) historyBtn.addEventListener('click', () => setHistoryOpen(true));
+    historyClose.addEventListener('click', () => setHistoryOpen(false));
+    historyBack.addEventListener('click', showHistoryList);
+
+    addChatMessage('system', 'Type /help for command tricks. Nasty little goblin panel is live.');
+
+    // Transcript panel commented out — guard references
+    const _tlog = document.getElementById('transcript-log');
+    if (_tlog) _tlog.innerHTML = '';
+
+    bootstrapAuth();
+  </script>
 </body>
 </html>
