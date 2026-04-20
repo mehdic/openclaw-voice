@@ -37,7 +37,14 @@ def _run_web_server() -> None:
 def main() -> None:
     """Run the web server and LiveKit worker process."""
 
+    import sys
+
     _configure_logging()
+
+    # LiveKit CLI expects a subcommand (dev/start/connect). Default to 'dev' if none given.
+    if len(sys.argv) < 2 or sys.argv[1] not in ("dev", "start", "connect", "download-files", "console"):
+        sys.argv = [sys.argv[0], "dev"]
+
     web_thread = threading.Thread(target=_run_web_server, name="openclaw-voice-web", daemon=True)
     web_thread.start()
     logger.info("Started Flask web server thread")

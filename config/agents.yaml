@@ -2,6 +2,30 @@
 # Each agent maps to an OpenClaw agent ID
 
 agents:
+  reaper:
+    display_name: "Reaper"
+    emoji: "⚔️"
+    language: en
+    voice:
+      provider: elevenlabs
+      voice_id: pNInz6obpgDQGcFmaJgB
+      model: eleven_turbo_v2_5
+    llm:
+      mode: gateway
+      model: anthropic/claude-sonnet-4-6
+
+  sevro:
+    display_name: "Sevro"
+    emoji: "🐺"
+    language: en
+    voice:
+      provider: elevenlabs
+      voice_id: pNInz6obpgDQGcFmaJgB
+      model: eleven_turbo_v2_5
+    llm:
+      mode: gateway
+      model: anthropic/claude-sonnet-4-6
+
   default:
     display_name: "Assistant"
     emoji: "🤖"
@@ -12,9 +36,8 @@ agents:
       model: eleven_turbo_v2_5
     llm:
       mode: gateway
-      model: anthropic/claude-sonnet-4-5
+      model: anthropic/claude-sonnet-4-6
 
-# users:
-#   you@example.com:
-#     agents: [default]
-#     default: default
+default_user:
+  agents: [reaper, sevro, default]
+  default: reaper
