@@ -204,7 +204,12 @@ async function connect() {
       }
     });
 
-    await room.connect(tokenData.serverUrl, tokenData.participantToken);
+    // Resolve LiveKit URL: use /livekit proxy when accessed via HTTPS (external)
+    const livekitUrl = window.location.protocol === 'https:'
+      ? `wss://${window.location.host}/livekit`
+      : tokenData.serverUrl;
+
+    await room.connect(livekitUrl, tokenData.participantToken);
     try {
       await room.localParticipant.setMicrophoneEnabled(true);
     } catch (err) {
