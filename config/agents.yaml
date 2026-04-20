@@ -1,0 +1,20 @@
+# config/agents.yaml — Agent definitions for OpenClaw Voice
+# Each agent maps to an OpenClaw agent ID
+
+agents:
+  default:
+    display_name: "Assistant"
+    emoji: "🤖"
+    language: en
+    voice:
+      provider: elevenlabs
+      voice_id: pNInz6obpgDQGcFmaJgB
+      model: eleven_turbo_v2_5
+    llm:
+      mode: gateway
+      model: anthropic/claude-sonnet-4-5
+
+# users:
+#   you@example.com:
+#     agents: [default]
+#     default: default
