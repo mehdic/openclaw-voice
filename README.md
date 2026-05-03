@@ -114,8 +114,35 @@ agents:
       provider: elevenlabs
       voice_id: pNInz6obpgDQGcFmaJgB
     llm:
-      model: anthropic/claude-sonnet-4-5
+      mode: gateway               # default — routes through OpenClaw gateway
+      model: anthropic/claude-sonnet-4-6
+
+  sevro:
+    display_name: "Sevro"
+    emoji: "🐺"
+    voice:
+      provider: elevenlabs
+      voice_id: pNInz6obpgDQGcFmaJgB
+    llm:
+      mode: codex_proxy           # uses codex-proxy models with auto-failover
+      model: codex-proxy/gpt-5.5
+      models:
+        primary: codex-proxy/gpt-5.5
+        fallbacks:
+          - codex-proxy/gpt-5.4-mini
+          - codex-proxy/gpt-4o-mini
 ```
+
+#### LLM modes
+
+| Mode | Behavior |
+|---|---|
+| `gateway` (default) | Routes LLM calls through the OpenClaw gateway. Model is sent via `x-openclaw-model` header. |
+| `codex_proxy` | Same gateway transport, but targets codex-proxy models. When `models.primary` and `models.fallbacks` are set, wraps all instances in LiveKit's `FallbackAdapter` for automatic retry on transient failure. |
+
+**Automatic failover in `codex_proxy` mode:**
+
+When a primary model is unavailable or returns an error, LiveKit's `FallbackAdapter` automatically retries the request with the next model in the list — no manual intervention needed. The picker in the browser UI still shows all models as manual switch options.
 
 ## Architecture
 

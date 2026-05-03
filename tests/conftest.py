@@ -64,6 +64,7 @@ def _install_livekit_stubs() -> None:
     livekit_module = types.ModuleType("livekit")
     livekit_api_module = types.ModuleType("livekit.api")
     livekit_agents_module = types.ModuleType("livekit.agents")
+    livekit_agents_llm_module = types.ModuleType("livekit.agents.llm")
     livekit_agents_stt_module = types.ModuleType("livekit.agents.stt")
     livekit_agents_types_module = types.ModuleType("livekit.agents.types")
     livekit_agents_utils_module = types.ModuleType("livekit.agents.utils")
@@ -154,6 +155,13 @@ def _install_livekit_stubs() -> None:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    class DummyFallbackAdapter:
+        """Minimal FallbackAdapter stub for testing."""
+
+        def __init__(self, llm: list, **kwargs):
+            self.llm = llm
+            self.kwargs = kwargs
+
     class VoiceSettings:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -186,7 +194,10 @@ def _install_livekit_stubs() -> None:
     livekit_agents_module.AgentSession = AgentSession
     livekit_agents_module.JobContext = object
     livekit_agents_module.cli = types.SimpleNamespace(run_app=run_app)
+    livekit_agents_module.llm = livekit_agents_llm_module
     livekit_agents_module.stt = livekit_agents_stt_module
+
+    livekit_agents_llm_module.FallbackAdapter = DummyFallbackAdapter
 
     livekit_agents_stt_module.STT = STT
     livekit_agents_stt_module.RecognizeStream = RecognizeStream
@@ -218,6 +229,7 @@ def _install_livekit_stubs() -> None:
     sys.modules["livekit"] = livekit_module
     sys.modules["livekit.api"] = livekit_api_module
     sys.modules["livekit.agents"] = livekit_agents_module
+    sys.modules["livekit.agents.llm"] = livekit_agents_llm_module
     sys.modules["livekit.agents.stt"] = livekit_agents_stt_module
     sys.modules["livekit.agents.types"] = livekit_agents_types_module
     sys.modules["livekit.agents.utils"] = livekit_agents_utils_module

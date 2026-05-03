@@ -23,8 +23,13 @@ agents:
       voice_id: pNInz6obpgDQGcFmaJgB
       model: eleven_turbo_v2_5
     llm:
-      mode: gateway
-      model: anthropic/claude-sonnet-4-6
+      mode: codex_proxy
+      model: codex-proxy/gpt-5.5
+      models:
+        primary: codex-proxy/gpt-5.5
+        fallbacks:
+          - codex-proxy/gpt-5.4-mini
+          - codex-proxy/gpt-4o-mini
 
   default:
     display_name: "Assistant"

@@ -81,6 +81,49 @@ Notes:
 - TURN is not proxied through Flask. If clients sit behind restrictive NATs, use a LiveKit deployment with TURN support configured and reachable over the public internet.
 - If you deploy behind a path prefix, update the proxy rules carefully because the frontend expects root-relative API paths such as `/api/session`.
 
+## LLM modes and automatic failover
+
+Each agent can use one of two LLM modes, set via `llm.mode` in `config/agents.yaml`.
+
+### `gateway` (default)
+
+All LLM calls route through the OpenClaw gateway. The model is selected via the
+`x-openclaw-model` request header, which OpenClaw maps to the configured provider.
+
+```yaml
+llm:
+  mode: gateway
+  model: anthropic/claude-sonnet-4-6
+```
+
+### `codex_proxy`
+
+Same gateway transport, but models come from an OpenClaw provider named `codex-proxy`
+(e.g. `codex-proxy/gpt-5.5`). When `models.primary` and `models.fallbacks` are
+configured, the voice worker wraps all LLM instances in LiveKit's built-in
+`FallbackAdapter`, which automatically retries the request with the next model in the
+list whenever a transient error occurs — no manual intervention needed.
+
+```yaml
+llm:
+  mode: codex_proxy
+  model: codex-proxy/gpt-5.5      # used when models.primary is absent
+  models:
+    primary: codex-proxy/gpt-5.5
+    fallbacks:
+      - codex-proxy/gpt-5.4-mini
+      - codex-proxy/gpt-4o-mini
+```
+
+**How failover works:**
+
+1. The voice worker creates one `openai.LLM` instance per model (primary + fallbacks), all pointed at the OpenClaw gateway with the respective `x-openclaw-model` header.
+2. These instances are passed to `livekit.agents.llm.FallbackAdapter` in priority order (primary first).
+3. On a transient error from the primary, LiveKit retries transparently with the next instance.
+4. If a single model is configured (or `model_override` is supplied), a bare `openai.LLM` is returned with no adapter overhead.
+
+The model picker in the browser UI still lists all configured models as manual switch options regardless of the mode.
+
 ## Security posture
 
 - The default auth mode is `demo`. That is suitable for local development only.
