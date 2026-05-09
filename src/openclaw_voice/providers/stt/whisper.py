@@ -272,7 +272,7 @@ class LocalSTT(stt.STT):
         if duration > MAX_AUDIO_DURATION_SECONDS:
             audio = audio[: int(MAX_AUDIO_DURATION_SECONDS * WHISPER_SAMPLE_RATE)]
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             text, confidence = await loop.run_in_executor(self._executor, self._transcribe_sync, audio, lang)
         except Exception:
@@ -306,6 +306,9 @@ class LocalSTT(stt.STT):
         """Close local resources."""
 
         self._executor.shutdown(wait=False)
+        # Replace the executor so any future accidental reuse gets a live pool
+        # rather than a silent RuntimeError from a shut-down executor.
+        self._executor = ThreadPoolExecutor(max_workers=EXECUTOR_MAX_WORKERS)
         self._model = None
 
 
@@ -328,7 +331,7 @@ class LocalSpeechStream(stt.RecognizeStream):
 
     async def _run(self) -> None:
         stt_instance: LocalSTT = self._stt  # type: ignore[assignment]
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         vad = SileroVAD(
             activation_threshold=self._activation_threshold,
             deactivation_threshold=max(self._activation_threshold - DEFAULT_DEACTIVATION_DELTA, 0.01),
@@ -350,6 +353,7 @@ class LocalSpeechStream(stt.RecognizeStream):
                 audio_f32 = _frame_to_float32(data)
                 vad_events = vad.process_frame(audio_f32)
 
+                end_finalized = False
                 for event in vad_events:
                     if event["type"] == "start" and not speaking:
                         speaking = True
@@ -364,10 +368,17 @@ class LocalSpeechStream(stt.RecognizeStream):
                         await self._finalize(stt_instance, loop, speech_frames)
                         speaking = False
                         speech_frames.clear()
+                        vad.reset()
+                        end_finalized = True
                         logger.debug("VAD: speech ended -> finalized")
-                        continue
+                        break
 
-                if speaking:
+                if end_finalized:
+                    # The frame that triggered end-of-speech was already consumed by
+                    # _finalize; skip the pre_buffer/speaking append for this frame so it
+                    # is not duplicated at the start of the next turn's pre_buffer.
+                    pass
+                elif speaking:
                     speech_frames.append(data)
                 else:
                     pre_buffer.append(data)

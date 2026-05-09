@@ -80,6 +80,14 @@ def _install_livekit_stubs() -> None:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    class RoomAgentDispatch:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class RoomConfiguration:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
     class AccessToken:
         def __init__(self, api_key: str, api_secret: str):
             self.api_key = api_key
@@ -88,6 +96,7 @@ def _install_livekit_stubs() -> None:
             self.name = ""
             self.grants = None
             self.metadata = ""
+            self.room_config = None
 
         def with_identity(self, identity: str):
             self.identity = identity
@@ -103,6 +112,10 @@ def _install_livekit_stubs() -> None:
 
         def with_metadata(self, metadata: str):
             self.metadata = metadata
+            return self
+
+        def with_room_config(self, room_config):
+            self.room_config = room_config
             return self
 
         def to_jwt(self) -> str:
@@ -124,7 +137,7 @@ def _install_livekit_stubs() -> None:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
-        def rtc_session(self):
+        def rtc_session(self, **kwargs):
             def decorator(func):
                 return func
 
@@ -146,6 +159,25 @@ def _install_livekit_stubs() -> None:
     class STTCapabilities:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+
+    import enum
+
+    class SpeechEventType(enum.Enum):
+        START_OF_SPEECH = "start_of_speech"
+        INTERIM_TRANSCRIPT = "interim_transcript"
+        FINAL_TRANSCRIPT = "final_transcript"
+        END_OF_SPEECH = "end_of_speech"
+
+    class SpeechData:
+        def __init__(self, *, language: str, text: str, confidence: float = 1.0):
+            self.language = language
+            self.text = text
+            self.confidence = confidence
+
+    class SpeechEvent:
+        def __init__(self, *, type: SpeechEventType, alternatives: list | None = None):
+            self.type = type
+            self.alternatives = alternatives or []
 
     class TurnHandlingOptions:
         def __init__(self, **kwargs):
@@ -188,6 +220,8 @@ def _install_livekit_stubs() -> None:
 
     livekit_api_module.AccessToken = AccessToken
     livekit_api_module.VideoGrants = VideoGrants
+    livekit_api_module.RoomAgentDispatch = RoomAgentDispatch
+    livekit_api_module.RoomConfiguration = RoomConfiguration
 
     livekit_agents_module.Agent = Agent
     livekit_agents_module.AgentServer = AgentServer
@@ -202,6 +236,9 @@ def _install_livekit_stubs() -> None:
     livekit_agents_stt_module.STT = STT
     livekit_agents_stt_module.RecognizeStream = RecognizeStream
     livekit_agents_stt_module.STTCapabilities = STTCapabilities
+    livekit_agents_stt_module.SpeechEventType = SpeechEventType
+    livekit_agents_stt_module.SpeechData = SpeechData
+    livekit_agents_stt_module.SpeechEvent = SpeechEvent
 
     livekit_agents_types_module.APIConnectOptions = APIConnectOptions
     livekit_agents_types_module.DEFAULT_API_CONNECT_OPTIONS = APIConnectOptions()
@@ -220,6 +257,18 @@ def _install_livekit_stubs() -> None:
     livekit_plugins_module.openai = livekit_plugins_openai_module
     livekit_plugins_module.elevenlabs = livekit_plugins_elevenlabs_module
     livekit_plugins_module.silero = livekit_plugins_silero_module
+
+    class AudioFrame:
+        """Minimal stub for livekit.rtc.AudioFrame used in STT tests."""
+
+        def __init__(self, data=b"", samples_per_channel: int = 512, sample_rate: int = 16000, num_channels: int = 1):
+            import io
+            self.data = memoryview(bytes(data)) if data else memoryview(b"\x00" * (samples_per_channel * 2))
+            self.samples_per_channel = samples_per_channel
+            self.sample_rate = sample_rate
+            self.num_channels = num_channels
+
+    livekit_rtc_module.AudioFrame = AudioFrame
 
     livekit_module.api = livekit_api_module
     livekit_module.agents = livekit_agents_module
